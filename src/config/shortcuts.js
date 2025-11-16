@@ -1,7 +1,7 @@
 export const SHORTCUTS = {
-  library: { name: 'Ouvrir Library', combo: '1' },
-  inspector: { name: 'Ouvrir Inspector', combo: '2' },
-  layers: { name: 'Ouvrir Layers', combo: '3' },
+  library: { name: 'Ouvrir Library', combo: 'l' },
+  inspector: { name: 'Ouvrir Inspector', combo: 'i' },
+  layers: { name: 'Ouvrir Layers', combo: 'g' },
   toggleTimeline: { name: 'Afficher/Masquer la timeline', combo: 't' },
   fitView: { name: 'Masquer les panneaux / fit view', combo: 'f' },
   closePanel: { name: 'Fermer le panneau actif', combo: 'Escape' },

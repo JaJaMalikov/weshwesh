@@ -12,13 +12,18 @@ const useSceneStore = create(
 
         addObject: (asset) => {
           const { objects } = get()
+          const highestZIndex = objects.reduce(
+            (max, obj) => Math.max(max, obj.zIndex ?? 0),
+            0
+          )
+          const nextZIndex = highestZIndex + 1
           const newObject = {
             id: nanoid(),
             assetId: asset.path, // Using asset path as a reference to the asset
             type: asset.category,
             x: 0,
             y: 0,
-            zIndex: objects.length + 1, // +1 because background is 0
+            zIndex: nextZIndex,
             visible: true,
             rotation: 0,
             scale: 1,
@@ -117,7 +122,7 @@ const useSceneStore = create(
       {
         // Exclude selectedObjectId from being part of the undo/redo history
         partialize: (state) => {
-          const { selectedObjectId, ...rest } = state
+          const { selectedObjectId: _selectedObjectId, ...rest } = state
           return rest
         },
       }

@@ -1,6 +1,8 @@
 #!/usr/bin/env node
+/* eslint-env node */
 import { mkdir, readdir, writeFile } from 'node:fs/promises'
 import path from 'node:path'
+import process from 'node:process'
 
 const rootDir = process.cwd()
 const assetsDir = path.resolve(rootDir, 'public', 'assets')

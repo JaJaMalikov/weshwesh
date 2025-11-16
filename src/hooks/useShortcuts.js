@@ -1,4 +1,4 @@
-import { useEffect, useMemo } from 'react'
+import { useEffect } from 'react'
 import { SHORTCUTS } from '../config/shortcuts'
 
 const INPUT_TAGS = new Set(['INPUT', 'TEXTAREA', 'SELECT'])
@@ -27,12 +27,38 @@ const PARSED_SHORTCUTS = Object.entries(SHORTCUTS)
 
 function matchesShortcut(event, shortcutConfig) {
   if (!shortcutConfig) return false
-  const keyMatch = shortcutConfig.key.toLowerCase() === event.key.toLowerCase()
-  const ctrlMatch = shortcutConfig.ctrlKey === event.ctrlKey
-  const metaMatch = shortcutConfig.metaKey === event.metaKey
-  const shiftMatch = shortcutConfig.shiftKey === event.shiftKey
-  const altMatch = shortcutConfig.altKey === event.altKey
-  return keyMatch && ctrlMatch && metaMatch && shiftMatch && altMatch
+
+  const keyMatch =
+    shortcutConfig.key.toLowerCase() === event.key.toLowerCase()
+  if (!keyMatch) return false
+
+  const ctrlRequired = Boolean(shortcutConfig.ctrlKey)
+  const metaRequired = Boolean(shortcutConfig.metaKey)
+
+  if (ctrlRequired) {
+    if (metaRequired) {
+      if (!(event.ctrlKey && event.metaKey)) return false
+    } else if (!(event.ctrlKey || event.metaKey)) {
+      return false
+    }
+  } else if (event.ctrlKey) {
+    return false
+  }
+
+  if (metaRequired) {
+    if (!event.metaKey) return false
+  } else if (event.metaKey && !ctrlRequired) {
+    return false
+  }
+
+  if (Boolean(shortcutConfig.shiftKey) !== Boolean(event.shiftKey)) {
+    return false
+  }
+  if (Boolean(shortcutConfig.altKey) !== Boolean(event.altKey)) {
+    return false
+  }
+
+  return true
 }
 
 function useShortcuts(handlers) {

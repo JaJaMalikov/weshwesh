@@ -7,7 +7,11 @@ function InlineSvg({ src }) {
   useEffect(() => {
     if (!src) return
     let cancelled = false
-    setStatus('loading')
+    Promise.resolve().then(() => {
+      if (!cancelled) {
+        setStatus('loading')
+      }
+    })
     fetch(src)
       .then((res) => {
         if (!res.ok) {
@@ -34,10 +38,36 @@ function InlineSvg({ src }) {
 
   const processedSvg = useMemo(() => {
     if (!svgContent) return null
-    // Remove width/height and add viewbox if missing, to allow scaling
-    return svgContent
-      .replace(/width="[^"]+"/, 'width="100%"')
-      .replace(/height="[^"]+"/, 'height="100%"')
+    try {
+      if (typeof DOMParser === 'undefined') {
+        return svgContent
+      }
+      const parser = new DOMParser()
+      const doc = parser.parseFromString(svgContent, 'image/svg+xml')
+      const svgElement = doc.querySelector('svg')
+      if (!svgElement) {
+        return svgContent
+      }
+
+      const widthAttr = svgElement.getAttribute('width')
+      const heightAttr = svgElement.getAttribute('height')
+
+      svgElement.setAttribute('width', '100%')
+      svgElement.setAttribute('height', '100%')
+
+      if (!svgElement.hasAttribute('viewBox') && widthAttr && heightAttr) {
+        const width = parseFloat(widthAttr)
+        const height = parseFloat(heightAttr)
+        if (Number.isFinite(width) && Number.isFinite(height)) {
+          svgElement.setAttribute('viewBox', `0 0 ${width} ${height}`)
+        }
+      }
+
+      return new XMLSerializer().serializeToString(svgElement)
+    } catch (error) {
+      console.error('InlineSvg: unable to normalize SVG dimensions', error)
+      return svgContent
+    }
   }, [svgContent])
 
   if (status === 'loading') {
