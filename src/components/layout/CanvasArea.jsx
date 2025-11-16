@@ -6,7 +6,7 @@ import InlineSvg from '../InlineSvg'
 const MIN_SCALE = 0.25
 const MAX_SCALE = 4
 
-function CanvasArea() {
+function CanvasArea({ panelContent }) {
   // Store Selectors
   const sceneBackground = useUIStore((state) => state.sceneBackground)
   const onStoreEvent = useUIStore((state) => state.on)
@@ -73,11 +73,11 @@ function CanvasArea() {
     setTransform((prev) => ({ ...prev, x: originX + dx, y: originY + dy }))
   }, [])
 
-  const handlePanEnd = useCallback(() => {
+  const handlePanEnd = useCallback(function onPanEnd() {
     panStateRef.current = null
     setIsPanning(false)
     window.removeEventListener('pointermove', handlePan)
-    window.removeEventListener('pointerup', handlePanEnd)
+    window.removeEventListener('pointerup', onPanEnd)
   }, [handlePan])
 
   const handlePanStart = useCallback(
@@ -112,10 +112,10 @@ function CanvasArea() {
     [fitScale, transform.scale, updateObject]
   )
 
-  const handleObjectDragEnd = useCallback(() => {
+  const handleObjectDragEnd = useCallback(function onObjectDragEnd() {
     draggedObjectRef.current = null
     window.removeEventListener('pointermove', handleObjectDrag)
-    window.removeEventListener('pointerup', handleObjectDragEnd)
+    window.removeEventListener('pointerup', onObjectDragEnd)
   }, [handleObjectDrag])
 
   const handleObjectPointerDown = useCallback(
@@ -170,59 +170,63 @@ function CanvasArea() {
     return () => offStoreEvent('resetCanvasView', resetView)
   }, [onStoreEvent, offStoreEvent, resetView])
 
+  const hasScene = Boolean(sceneBackground && sceneDimensions && fitScale)
+  const stageScale = hasScene ? fitScale * transform.scale : 1
+
   // --- Render ---
 
   return (
-    <div className="canvas-area" ref={containerRef}>
-      {sceneBackground && sceneDimensions && fitScale ? (
-        <div
-          ref={stageRef}
-          className={`canvas-stage ${isPanning ? 'is-dragging' : ''}`}
-          style={{
-            width: sceneDimensions.width,
-            height: sceneDimensions.height,
-            transform: `translate(${transform.x}px, ${transform.y}px) scale(${
-              fitScale * transform.scale
-            })`,
-          }}
-          onPointerDown={handlePanStart}
-          onDoubleClick={resetView}
-          onDragOver={(e) => e.preventDefault()}
-        >
-          <img
-            src={`/assets/${sceneBackground.path}`}
-            alt={sceneBackground.name}
-            loading="eager"
-            draggable="false"
-            style={{ zIndex: 0 }}
-          />
-          {objects
-            .filter((obj) => obj.visible)
-            .map((obj) => {
-              const isSelected = obj.id === selectedObjectId
-              return (
-                <div
-                  key={obj.id}
-                  className={`scene-object ${isSelected ? 'selected' : ''}`}
-                  style={{
-                    width: obj.width,
-                    height: obj.height,
-                    transform: `translate(${obj.x}px, ${obj.y}px) rotate(${obj.rotation}deg) scale(${obj.scale})`,
-                    zIndex: obj.zIndex,
-                  }}
-                  onPointerDown={(e) => handleObjectPointerDown(e, obj)}
-                >
-                  <InlineSvg src={`/assets/${obj.path}`} />
-                </div>
-              )
-            })}
-        </div>
-      ) : (
-        <div className="canvas-placeholder">
-          <p>Canvas SVG</p>
-          <span>Le théâtre numérique arrive ici.</span>
-        </div>
-      )}
+    <div className="workspace-main">
+      {panelContent}
+      <div className="canvas-area" ref={containerRef}>
+        {hasScene && (
+          <div
+            ref={stageRef}
+            className={`canvas-stage ${isPanning ? 'is-dragging' : ''}`}
+            style={{
+              width: sceneDimensions.width,
+              height: sceneDimensions.height,
+              transform: `translate(${transform.x}px, ${transform.y}px) scale(${stageScale})`,
+              transformOrigin: 'center center',
+            }}
+            onPointerDown={handlePanStart}
+            onDoubleClick={resetView}
+            onDragOver={(e) => e.preventDefault()}
+          >
+            <img
+              src={`/assets/${sceneBackground.path}`}
+              alt={sceneBackground.name}
+              loading="eager"
+              draggable="false"
+              style={{
+                zIndex: 0,
+                width: '100%',
+                height: '100%',
+                imageRendering: 'auto',
+              }}
+            />
+            {objects
+              .filter((obj) => obj.visible)
+              .map((obj) => {
+                const isSelected = obj.id === selectedObjectId
+                return (
+                  <InlineSvg
+                    key={obj.id}
+                    src={`/assets/${obj.path}`}
+                    className={`scene-object ${isSelected ? 'selected' : ''}`}
+                    style={{
+                      width: obj.width,
+                      height: obj.height,
+                      transform: `translate(${obj.x}px, ${obj.y}px) rotate(${obj.rotation}deg) scale(${obj.scale})`,
+                      zIndex: obj.zIndex,
+                    }}
+                    onPointerDown={(e) => handleObjectPointerDown(e, obj)}
+                  />
+                )
+              })}
+          </div>
+        )}
+      </div>
     </div>
   )
 }

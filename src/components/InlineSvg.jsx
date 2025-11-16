@@ -1,6 +1,6 @@
 import { useEffect, useState, useMemo } from 'react'
 
-function InlineSvg({ src }) {
+function InlineSvg({ src, className, style, ...rest }) {
   const [svgContent, setSvgContent] = useState(null)
   const [status, setStatus] = useState('loading')
 
@@ -40,13 +40,13 @@ function InlineSvg({ src }) {
     if (!svgContent) return null
     try {
       if (typeof DOMParser === 'undefined') {
-        return svgContent
+        return null
       }
       const parser = new DOMParser()
       const doc = parser.parseFromString(svgContent, 'image/svg+xml')
       const svgElement = doc.querySelector('svg')
       if (!svgElement) {
-        return svgContent
+        return null
       }
 
       const widthAttr = svgElement.getAttribute('width')
@@ -63,22 +63,49 @@ function InlineSvg({ src }) {
         }
       }
 
-      return new XMLSerializer().serializeToString(svgElement)
+      const attributes = {}
+      Array.from(svgElement.attributes).forEach((attr) => {
+        if (attr.name === 'class' || attr.name === 'style') {
+          return
+        }
+        attributes[attr.name] = attr.value
+      })
+
+      return {
+        attributes,
+        innerHTML: svgElement.innerHTML,
+      }
     } catch (error) {
       console.error('InlineSvg: unable to normalize SVG dimensions', error)
-      return svgContent
+      return null
     }
   }, [svgContent])
 
   if (status === 'loading') {
-    return <div>...</div>
+    return (
+      <span className={className} style={style} {...rest}>
+        …
+      </span>
+    )
   }
 
-  if (status === 'error') {
-    return <div>⚠️</div>
+  if (status === 'error' || !processedSvg) {
+    return (
+      <span className={className} style={style} {...rest}>
+        ⚠️
+      </span>
+    )
   }
 
-  return <div dangerouslySetInnerHTML={{ __html: processedSvg }} />
+  return (
+    <svg
+      {...processedSvg.attributes}
+      className={className}
+      style={style}
+      {...rest}
+      dangerouslySetInnerHTML={{ __html: processedSvg.innerHTML }}
+    />
+  )
 }
 
 export default InlineSvg

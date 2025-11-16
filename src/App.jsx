@@ -71,6 +71,21 @@ function App() {
     togglePanel(tool.id)
   }
 
+  const panelContent =
+    activePanelConfig && ActivePanelComponent ? (
+      <section className="side-panel">
+        <header>
+          <h2>{activePanelConfig.title}</h2>
+          <button type="button" className="ghost-btn" onClick={closePanel}>
+            ✕
+          </button>
+        </header>
+        <div className="panel-body">
+          <ActivePanelComponent />
+        </div>
+      </section>
+    ) : null
+
   return (
     <div className="app-shell">
       <Sidebar
@@ -80,30 +95,10 @@ function App() {
       />
 
       <div className="workspace">
-        <div className="workspace-main">
-          {activePanelConfig && ActivePanelComponent && (
-            <section className="side-panel">
-              <header>
-                <h2>{activePanelConfig.title}</h2>
-                <button
-                  type="button"
-                  className="ghost-btn"
-                  onClick={closePanel}
-                >
-                  ✕
-                </button>
-              </header>
-              <div className="panel-body">
-                <ActivePanelComponent />
-              </div>
-            </section>
-          )}
-
-          <CanvasArea />
-        </div>
+        <CanvasArea panelContent={panelContent} />
 
         {timelineOpen && (
-            <TimelinePanel onClose={() => setTimelineOpen(false)} />
+          <TimelinePanel onClose={() => setTimelineOpen(false)} />
         )}
       </div>
     </div>

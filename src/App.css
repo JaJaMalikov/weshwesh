@@ -70,11 +70,8 @@
 }
 
 .side-panel {
-  position: absolute;
-  top: 0;
-  bottom: 0;
-  left: 0;
-  width: 320px;
+  flex: 0 0 320px;
+  height: 100%;
   background: rgba(18, 18, 22, 0.95);
   display: flex;
   flex-direction: column;
@@ -324,9 +321,7 @@ body.is-dragging-layer {
 }
 
 .canvas-stage {
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  position: relative;
   cursor: grab;
   touch-action: none;
   will-change: transform;
