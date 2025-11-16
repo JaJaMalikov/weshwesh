@@ -1,0 +1,3 @@
+## COMMANDE SI PAS D'ACCÈS À NPM
+
+export PATH="$NVM_BIN:$PATH"

@@ -1,0 +1,43 @@
+[
+  {
+    "name": "Bureau",
+    "path": "decors/bureau.png",
+    "category": "decors"
+  },
+  {
+    "name": "Scene",
+    "path": "decors/scene.png",
+    "category": "decors"
+  },
+  {
+    "name": "Basse",
+    "path": "objets/basse.svg",
+    "category": "objets"
+  },
+  {
+    "name": "Faucille",
+    "path": "objets/faucille.svg",
+    "category": "objets"
+  },
+  {
+    "name": "Laurier",
+    "path": "objets/laurier.svg",
+    "category": "objets"
+  },
+  {
+    "name": "Lunettes manu",
+    "path": "objets/lunettes_manu.svg",
+    "category": "objets"
+  },
+  {
+    "name": "Marteau",
+    "path": "objets/marteau.svg",
+    "category": "objets"
+  },
+  {
+    "name": "Manu o",
+    "path": "pantins/manu_o.svg",
+    "category": "pantins",
+    "meta": "pantins/manu_o.json"
+  }
+]
