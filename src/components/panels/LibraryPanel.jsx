@@ -19,9 +19,21 @@ function LibraryPanel() {
         const res = await fetch(`/assets/${asset.meta}`)
         if (!res.ok) throw new Error('Failed to fetch pantin data')
         const data = await res.json()
+
+        // Get scene background dimensions to center the object
+        const background = useUIStore.getState().sceneBackground
+        const centerX = background ? (background.width - data.width) / 2 : 0
+        const centerY = background ? (background.height - data.height) / 2 : 0
+
+        // Ensure 'path' field is preserved for rendering
+        // The JSON data uses 'source' but we need 'path' for consistent rendering
         addObject({
           ...asset,
           ...data, // The JSON data includes width, height, members, etc.
+          ...asset, // Spread asset after to preserve path, name, category
+          path: data.source || asset.path, // Explicitly set path from source
+          x: centerX,
+          y: centerY,
         })
       } catch (err) {
         console.error(err)
@@ -31,10 +43,17 @@ function LibraryPanel() {
       // Preload to get dimensions for SVGs
       const img = new Image()
       img.onload = () => {
+        // Get scene background dimensions to center the object
+        const background = useUIStore.getState().sceneBackground
+        const centerX = background ? (background.width - img.naturalWidth) / 2 : 0
+        const centerY = background ? (background.height - img.naturalHeight) / 2 : 0
+
         addObject({
           ...asset,
           width: img.naturalWidth,
           height: img.naturalHeight,
+          x: centerX,
+          y: centerY,
         })
       }
       img.onerror = () => {

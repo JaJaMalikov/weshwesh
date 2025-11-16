@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import useUIStore from '../../stores/useUIStore'
 import useSceneStore from '../../stores/useSceneStore'
-import InlineSvg from '../InlineSvg'
+import SvgObject from '../SvgObject'
+import SvgBackground from '../SvgBackground'
 
 const MIN_SCALE = 0.25
 const MAX_SCALE = 4
@@ -180,9 +181,11 @@ function CanvasArea({ panelContent }) {
       {panelContent}
       <div className="canvas-area" ref={containerRef}>
         {hasScene && (
-          <div
+          <svg
             ref={stageRef}
             className={`canvas-stage ${isPanning ? 'is-dragging' : ''}`}
+            viewBox={`0 0 ${sceneDimensions.width} ${sceneDimensions.height}`}
+            shapeRendering="geometricPrecision"
             style={{
               width: sceneDimensions.width,
               height: sceneDimensions.height,
@@ -193,38 +196,33 @@ function CanvasArea({ panelContent }) {
             onDoubleClick={resetView}
             onDragOver={(e) => e.preventDefault()}
           >
-            <img
+            {/* Background as inline SVG */}
+            <SvgBackground
               src={`/assets/${sceneBackground.path}`}
-              alt={sceneBackground.name}
-              loading="eager"
-              draggable="false"
-              style={{
-                zIndex: 0,
-                width: '100%',
-                height: '100%',
-                imageRendering: 'auto',
-              }}
+              width={sceneDimensions.width}
+              height={sceneDimensions.height}
             />
+
+            {/* Objects/Pantins sorted by zIndex - rendered as inline SVG */}
             {objects
               .filter((obj) => obj.visible)
+              .sort((a, b) => a.zIndex - b.zIndex)
               .map((obj) => {
                 const isSelected = obj.id === selectedObjectId
                 return (
-                  <InlineSvg
+                  <SvgObject
                     key={obj.id}
                     src={`/assets/${obj.path}`}
+                    x={obj.x}
+                    y={obj.y}
+                    rotation={obj.rotation}
+                    scale={obj.scale}
                     className={`scene-object ${isSelected ? 'selected' : ''}`}
-                    style={{
-                      width: obj.width,
-                      height: obj.height,
-                      transform: `translate(${obj.x}px, ${obj.y}px) rotate(${obj.rotation}deg) scale(${obj.scale})`,
-                      zIndex: obj.zIndex,
-                    }}
                     onPointerDown={(e) => handleObjectPointerDown(e, obj)}
                   />
                 )
               })}
-          </div>
+          </svg>
         )}
       </div>
     </div>

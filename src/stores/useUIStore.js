@@ -1,4 +1,5 @@
 import { create } from 'zustand'
+import { persist } from 'zustand/middleware'
 
 const eventEmitter = {
   listeners: {},
@@ -22,35 +23,46 @@ const eventEmitter = {
   },
 };
 
-const useUIStore = create((set, get) => ({
-  activePanel: null,
-  timelineOpen: true,
-  sceneBackground: null,
-  // resetCanvasView: null, // REMOVED
+const useUIStore = create(
+  persist(
+    (set, get) => ({
+      activePanel: null,
+      timelineOpen: false,
+      sceneBackground: null,
+      // resetCanvasView: null, // REMOVED
 
-  setActivePanel: (panelId) => set({ activePanel: panelId }),
-  togglePanel: (panelId) =>
-    set((state) => ({
-      activePanel: state.activePanel === panelId ? null : panelId,
-    })),
-  closePanel: () => set({ activePanel: null }),
-  toggleTimeline: () =>
-    set((state) => ({ timelineOpen: !state.timelineOpen })),
-  setTimelineOpen: (open) => set({ timelineOpen: Boolean(open) }),
-  setSceneBackground: (background) => set({ sceneBackground: background }),
-  clearSceneBackground: () => set({ sceneBackground: null }),
-  // registerCanvasReset: (callback) => set({ resetCanvasView: callback }), // REMOVED
+      setActivePanel: (panelId) => set({ activePanel: panelId }),
+      togglePanel: (panelId) =>
+        set((state) => ({
+          activePanel: state.activePanel === panelId ? null : panelId,
+        })),
+      closePanel: () => set({ activePanel: null }),
+      toggleTimeline: () =>
+        set((state) => ({ timelineOpen: !state.timelineOpen })),
+      setTimelineOpen: (open) => set({ timelineOpen: Boolean(open) }),
+      setSceneBackground: (background) => set({ sceneBackground: background }),
+      clearSceneBackground: () => set({ sceneBackground: null }),
+      // registerCanvasReset: (callback) => set({ resetCanvasView: callback }), // REMOVED
 
-  on: eventEmitter.on.bind(eventEmitter),
-  off: eventEmitter.off.bind(eventEmitter),
-  emit: eventEmitter.emit.bind(eventEmitter),
+      on: eventEmitter.on.bind(eventEmitter),
+      off: eventEmitter.off.bind(eventEmitter),
+      emit: eventEmitter.emit.bind(eventEmitter),
 
-  fitSceneInView: () => {
-    get().emit('resetCanvasView'); // Emit the event
-    if (get().activePanel === 'library') {
-      set({ activePanel: null });
+      fitSceneInView: () => {
+        get().emit('resetCanvasView'); // Emit the event
+        if (get().activePanel === 'library') {
+          set({ activePanel: null });
+        }
+      },
+    }),
+    {
+      name: 'bab-ui-storage',
+      partialize: (state) => ({
+        sceneBackground: state.sceneBackground,
+        timelineOpen: state.timelineOpen,
+      }),
     }
-  },
-}))
+  )
+)
 
 export default useUIStore

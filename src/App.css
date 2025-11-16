@@ -65,21 +65,25 @@
 .workspace-main {
   position: relative;
   flex: 1;
-  display: flex;
   min-height: 0;
 }
 
 .side-panel {
-  flex: 0 0 320px;
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 320px;
   height: 100%;
   background: rgba(18, 18, 22, 0.95);
+  backdrop-filter: blur(10px);
   display: flex;
   flex-direction: column;
   padding: 1rem;
   border-right: 1px solid var(--border);
-  z-index: 2;
+  z-index: 10;
   pointer-events: auto;
   overflow-y: auto;
+  box-shadow: 4px 0 24px rgba(0, 0, 0, 0.4);
 }
 
 .side-panel header {
@@ -312,62 +316,51 @@ body.is-dragging-layer {
 
 .canvas-area {
   flex: 1;
+  width: 100%;
+  height: 100%;
   min-height: 0;
   display: flex;
   align-items: center;
   justify-content: center;
   position: relative;
   overflow: hidden;
+  background: #0a0a0a;
 }
 
 .canvas-stage {
-  position: relative;
   cursor: grab;
   touch-action: none;
-  will-change: transform;
   transform-origin: center center;
   user-select: none;
   -webkit-user-select: none;
+  filter: drop-shadow(0 8px 32px rgba(0, 0, 0, 0.6));
+  overflow: visible;
+  shape-rendering: geometricPrecision;
+  text-rendering: geometricPrecision;
 }
 
 .canvas-stage.is-dragging {
   cursor: grabbing;
 }
 
-.canvas-stage img {
-  display: block;
-  object-fit: contain;
-  background: #050505;
-}
-
-.canvas-placeholder {
-  text-align: center;
-  color: var(--text-muted);
-  display: flex;
-  flex-direction: column;
-  gap: 0.45rem;
-}
-
 .scene-object {
-  position: absolute;
-  will-change: transform;
   cursor: grab;
-  outline: 2px solid transparent;
-  outline-offset: 4px;
-  transition: outline-color 0.2s;
+  transition: filter 0.2s;
+  pointer-events: all;
+  shape-rendering: geometricPrecision;
+  vector-effect: non-scaling-stroke;
 }
 
 .scene-object.selected {
-  outline-color: var(--accent);
+  filter: drop-shadow(0 0 8px var(--accent)) drop-shadow(0 0 4px var(--accent));
 }
 
-.scene-object img {
-  width: 100%;
-  height: 100%;
-  object-fit: contain;
-  -webkit-user-drag: none;
-  user-select: none;
-  pointer-events: none; /* Pass pointer events to the parent div */
+.scene-object:hover {
+  filter: drop-shadow(0 0 4px rgba(255, 255, 255, 0.5));
+}
+
+.scene-object.selected:hover {
+  filter: drop-shadow(0 0 8px var(--accent)) drop-shadow(0 0 4px var(--accent));
 }
 
 
