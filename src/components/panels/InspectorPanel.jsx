@@ -11,6 +11,17 @@ function InspectorPanel() {
     [objects, selectedObjectId]
   )
 
+  // Get available pantins for parenting
+  const availablePantins = useMemo(
+    () => objects.filter(obj => obj.category === 'pantins' && obj.id !== selectedObjectId),
+    [objects, selectedObjectId]
+  )
+
+  const parentPantin = useMemo(
+    () => selectedObject?.parentObjectId ? objects.find(obj => obj.id === selectedObject.parentObjectId) : null,
+    [objects, selectedObject]
+  )
+
   const handleUpdate = (prop, value) => {
     if (!selectedObjectId) return
     // Ensure value is a number for numeric properties
@@ -49,6 +60,82 @@ function InspectorPanel() {
     })
 
     updateObject(selectedObjectId, { members: updatedMembers })
+  }
+
+  // Calculate cumulative rotation of a member including all parent members
+  const getCumulativeMemberRotation = (pantin, memberId) => {
+    if (!pantin?.members) return 0
+
+    let totalRotation = 0
+    let currentMemberId = memberId
+
+    // Traverse up the hierarchy
+    while (currentMemberId) {
+      const member = pantin.members.find(m => m.id === currentMemberId)
+      if (!member) break
+
+      totalRotation += member.rotation || 0
+      // Check both 'parent' and 'parentId' for compatibility
+      const parentId = member.parent || member.parentId
+      currentMemberId = (parentId === 'root' || !parentId) ? null : parentId
+    }
+
+    return totalRotation
+  }
+
+  const handleParentChange = (parentObjectId) => {
+    if (!selectedObjectId || !selectedObject) return
+
+    if (parentObjectId === 'none') {
+      // Unlink from parent - restore absolute coordinates
+      const relativeX = selectedObject.relativeX ?? selectedObject.x
+      const relativeY = selectedObject.relativeY ?? selectedObject.y
+      updateObject(selectedObjectId, {
+        parentObjectId: null,
+        parentMemberId: null,
+        x: relativeX,
+        y: relativeY,
+        relativeX: undefined,
+        relativeY: undefined,
+        relativeRotation: undefined
+      })
+    } else {
+      // Link to parent - calculate relative coordinates
+      const parent = objects.find(obj => obj.id === parentObjectId)
+      const firstMember = parent?.members?.[0]
+
+      // Calculate position relative to parent pantin
+      const relativeX = selectedObject.x - (parent?.x || 0)
+      const relativeY = selectedObject.y - (parent?.y || 0)
+
+      // Calculate cumulative rotation of the member (including all parent members)
+      const memberInitialRotation = getCumulativeMemberRotation(parent, firstMember?.id)
+
+      // Calculate relative rotation: object's absolute rotation minus member's cumulative rotation
+      // This ensures the object maintains its visual orientation when linked
+      const relativeRotation = (selectedObject.rotation || 0) - memberInitialRotation
+
+      updateObject(selectedObjectId, {
+        parentObjectId,
+        parentMemberId: firstMember?.id || null,
+        relativeX,
+        relativeY,
+        relativeRotation,
+        memberInitialRotation // Store member cumulative rotation at link time
+      })
+    }
+  }
+
+  const handleParentMemberChange = (parentMemberId) => {
+    if (!selectedObjectId || !parentPantin) return
+
+    // Calculate cumulative rotation of the new member
+    const memberInitialRotation = getCumulativeMemberRotation(parentPantin, parentMemberId)
+
+    updateObject(selectedObjectId, {
+      parentMemberId,
+      memberInitialRotation // Update member cumulative rotation reference
+    })
   }
 
   if (!selectedObject) {
@@ -93,6 +180,43 @@ function InspectorPanel() {
           min="0"
         />
       </label>
+
+      {!isPantin && availablePantins.length > 0 && (
+        <>
+          <div style={{ gridColumn: '1 / -1', marginTop: '1rem', borderTop: '1px solid #ccc', paddingTop: '1rem' }}>
+            <h3 style={{ margin: '0 0 0.5rem 0' }}>Parentage</h3>
+          </div>
+          <label>
+            Lier au pantin
+            <select
+              value={selectedObject.parentObjectId || 'none'}
+              onChange={(e) => handleParentChange(e.target.value)}
+            >
+              <option value="none">Aucun</option>
+              {availablePantins.map(pantin => (
+                <option key={pantin.id} value={pantin.id}>
+                  {pantin.name}
+                </option>
+              ))}
+            </select>
+          </label>
+          {parentPantin && parentPantin.members && (
+            <label>
+              Membre parent
+              <select
+                value={selectedObject.parentMemberId || ''}
+                onChange={(e) => handleParentMemberChange(e.target.value)}
+              >
+                {parentPantin.members.map(member => (
+                  <option key={member.id} value={member.id}>
+                    {member.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
+        </>
+      )}
 
       {isPantin && (
         <>

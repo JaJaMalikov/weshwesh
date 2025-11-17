@@ -1,8 +1,13 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
+import useSceneStore from '../stores/useSceneStore';
 
 function Pantin({ pantin, onPointerDown }) {
   const { id, members, source, x, y, rotation, scale, variantGroups, width, height, viewBox } = pantin;
   const [svgContent, setSvgContent] = useState(null);
+
+  // Get child objects attached to this pantin's members
+  const objects = useSceneStore((state) => state.objects);
+  const childObjects = useMemo(() => objects.filter(obj => obj.parentObjectId === id), [objects, id]);
 
   useEffect(() => {
     if (!source) return;
@@ -201,6 +206,60 @@ function Pantin({ pantin, onPointerDown }) {
 
         reorderMembers();
 
+        // Helper function to calculate cumulative rotation of a member
+        const getCumulativeRotation = (memberId) => {
+          let totalRot = 0;
+          let currentId = memberId;
+
+          while (currentId) {
+            const member = members.find(m => m.id === currentId);
+            if (!member) break;
+
+            totalRot += member.rotation || 0;
+            const parentId = member.parent || member.parentId;
+            currentId = (parentId === 'root' || !parentId) ? null : parentId;
+          }
+
+          return totalRot;
+        };
+
+        // Insérer les objets enfants dans les membres parents
+        childObjects.forEach(childObj => {
+          if (!childObj.parentMemberId) return;
+
+          const prefixedMemberId = uniquePrefix + childObj.parentMemberId;
+          const memberElement = svg.querySelector(`[id="${prefixedMemberId}"]`);
+
+          if (memberElement) {
+            // Utiliser les coordonnées relatives (ou absolues si pas définies)
+            const objX = childObj.relativeX ?? childObj.x;
+            const objY = childObj.relativeY ?? childObj.y;
+
+            // Créer un élément image ou utiliser le SVG de l'objet
+            if (childObj.category === 'objets') {
+              const image = doc.createElementNS('http://www.w3.org/2000/svg', 'image');
+              image.setAttribute('href', `/assets/${childObj.path}`);
+              image.setAttribute('x', objX);
+              image.setAttribute('y', objY);
+              image.setAttribute('width', (childObj.width || 100) * childObj.scale);
+              image.setAttribute('height', (childObj.height || 100) * childObj.scale);
+
+              // Use only relativeRotation (already calculated at link time)
+              const totalRotation = childObj.relativeRotation ?? 0;
+
+              if (totalRotation !== 0) {
+                const cx = objX + ((childObj.width || 100) * childObj.scale) / 2;
+                const cy = objY + ((childObj.height || 100) * childObj.scale) / 2;
+                image.setAttribute('transform', `rotate(${totalRotation} ${cx} ${cy})`);
+              }
+
+              image.setAttribute('data-child-object', 'true');
+              image.setAttribute('data-child-object-id', childObj.id);
+              memberElement.appendChild(image);
+            }
+          }
+        });
+
         // Extraire le viewBox et les dimensions
         const svgViewBox = svg.getAttribute('viewBox') || viewBox;
         const svgWidth = parseFloat(svg.getAttribute('width')) || width;
@@ -222,7 +281,7 @@ function Pantin({ pantin, onPointerDown }) {
     return () => {
       cancelled = true;
     };
-  }, [source, id, members, variantGroups, width, height, viewBox]);
+  }, [source, id, members, variantGroups, width, height, viewBox, childObjects]);
 
   if (!svgContent) {
     return null;

@@ -237,7 +237,7 @@ function CanvasArea({ panelContent }) {
 
             {/* Objects/Pantins sorted by zIndex - rendered as inline SVG */}
             {displayObjects
-              .filter((obj) => obj.visible)
+              .filter((obj) => obj.visible && !obj.parentObjectId) // Exclude parented objects (rendered inside pantins)
               .sort((a, b) => a.zIndex - b.zIndex)
               .map((obj) => {
                 const isSelected = obj.id === selectedObjectId

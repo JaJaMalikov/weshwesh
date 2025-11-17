@@ -35,6 +35,11 @@ const useSceneStore = create(
             visible: true,
             rotation: 0,
             scale: 1,
+            parentObjectId: null, // ID of parent object (pantin)
+            parentMemberId: null, // ID of parent member within the pantin
+            relativeX: null, // Position relative to parent pantin
+            relativeY: null,
+            relativeRotation: null,
           }
           set({
             objects: [...objects, newObject],
