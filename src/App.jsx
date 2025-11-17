@@ -11,7 +11,6 @@ import './App.css'
 function App() {
   const activePanel = useUIStore((state) => state.activePanel)
   const timelineOpen = useUIStore((state) => state.timelineOpen)
-  const setActivePanel = useUIStore((state) => state.setActivePanel)
   const togglePanel = useUIStore((state) => state.togglePanel)
   const closePanel = useUIStore((state) => state.closePanel)
   const toggleTimeline = useUIStore((state) => state.toggleTimeline)

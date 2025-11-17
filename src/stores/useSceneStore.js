@@ -142,7 +142,7 @@ const useSceneStore = create(
     {
       name: 'bab-scene-storage', // name of the item in the storage (must be unique)
       version: 1,
-      migrate: (persistedState, version) => {
+        migrate: (persistedState) => {
         // Migration: Fix objects with non-unique IDs (e.g., id: "manu")
         if (persistedState && persistedState.objects) {
           persistedState.objects = persistedState.objects.map((obj) => {

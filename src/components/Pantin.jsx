@@ -244,8 +244,11 @@ function Pantin({ pantin, onPointerDown }) {
               image.setAttribute('width', (childObj.width || 100) * childObj.scale);
               image.setAttribute('height', (childObj.height || 100) * childObj.scale);
 
-              // Use only relativeRotation (already calculated at link time)
-              const totalRotation = childObj.relativeRotation ?? 0;
+              const currentMemberRotation = getCumulativeRotation(childObj.parentMemberId);
+              const initialMemberRotation = childObj.memberInitialRotation ?? 0;
+
+              // Apply only the delta rotation after the link to keep the initial orientation
+              const totalRotation = (childObj.relativeRotation ?? 0) + (currentMemberRotation - initialMemberRotation);
 
               if (totalRotation !== 0) {
                 const cx = objX + ((childObj.width || 100) * childObj.scale) / 2;
