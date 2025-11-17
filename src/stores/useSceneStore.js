@@ -17,8 +17,16 @@ const useSceneStore = create(
             0
           )
           const nextZIndex = highestZIndex + 1
+          const uniqueId = nanoid()
+
+          // Clone asset and remove its 'id' field to avoid conflicts
+          const clonedAsset = structuredClone(asset)
+          const { id: _assetId, ...assetWithoutId } = clonedAsset
+
           const newObject = {
-            id: nanoid(),
+            ...assetWithoutId, // Spread asset properties first (name, category, etc.)
+            id: uniqueId, // Then override with unique ID
+            pantinDefId: _assetId, // Store original pantin definition ID if it exists
             assetId: asset.path, // Using asset path as a reference to the asset
             type: asset.category,
             x: 0,
@@ -27,7 +35,6 @@ const useSceneStore = create(
             visible: true,
             rotation: 0,
             scale: 1,
-            ...asset, // Spread asset properties like name, category, etc.
           }
           set({
             objects: [...objects, newObject],
@@ -56,7 +63,7 @@ const useSceneStore = create(
             objects: state.objects.map((obj) =>
               obj.id === id ? { ...obj, ...newProps } : obj
             ),
-          }))
+          }));
         },
 
         selectObject: (id) => {
@@ -129,6 +136,26 @@ const useSceneStore = create(
     ),
     {
       name: 'bab-scene-storage', // name of the item in the storage (must be unique)
+      version: 1,
+      migrate: (persistedState, version) => {
+        // Migration: Fix objects with non-unique IDs (e.g., id: "manu")
+        if (persistedState && persistedState.objects) {
+          persistedState.objects = persistedState.objects.map((obj) => {
+            // Check if the ID looks like a pantin definition ID (short, no special chars)
+            // instead of a nanoid (which has hyphens and is longer)
+            if (obj.id && obj.id.length < 10 && !obj.id.includes('-')) {
+              // This is likely a pantin definition ID, regenerate a unique ID
+              return {
+                ...obj,
+                pantinDefId: obj.id, // Save the original ID
+                id: nanoid(), // Generate a new unique ID
+              }
+            }
+            return obj
+          })
+        }
+        return persistedState
+      },
     }
   )
 )

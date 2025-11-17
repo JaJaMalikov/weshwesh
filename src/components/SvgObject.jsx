@@ -52,18 +52,24 @@ function SvgObject({ src, x, y, rotation, scale, onPointerDown, className }) {
     return null
   }
 
+  const width = parseFloat(svgContent.width) || 100
+  const height = parseFloat(svgContent.height) || 100
+
   return (
-    <g
+    <svg
       className={className}
-      transform={`translate(${x}, ${y}) rotate(${rotation}) scale(${scale})`}
+      x={x}
+      y={y}
+      width={width * scale}
+      height={height * scale}
+      viewBox={svgContent.viewBox || `0 0 ${width} ${height}`}
+      transform={`rotate(${rotation} ${x + (width * scale) / 2} ${y + (height * scale) / 2})`}
       onPointerDown={onPointerDown}
-      style={{ cursor: 'grab' }}
+      style={{ cursor: 'grab', overflow: 'visible' }}
+      shapeRendering="geometricPrecision"
     >
-      <g
-        shapeRendering="geometricPrecision"
-        dangerouslySetInnerHTML={{ __html: svgContent.innerHTML }}
-      />
-    </g>
+      <g dangerouslySetInnerHTML={{ __html: svgContent.innerHTML }} />
+    </svg>
   )
 }
 

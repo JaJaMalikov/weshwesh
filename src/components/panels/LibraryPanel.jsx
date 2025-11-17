@@ -25,11 +25,18 @@ function LibraryPanel() {
         const centerX = background ? (background.width - data.width) / 2 : 0
         const centerY = background ? (background.height - data.height) / 2 : 0
 
+        // Initialize rotation for each member
+        const membersWithRotation = data.members.map(member => ({
+          ...member,
+          rotation: member.rotation || 0
+        }))
+
         // Ensure 'path' field is preserved for rendering
         // The JSON data uses 'source' but we need 'path' for consistent rendering
         addObject({
           ...asset,
           ...data, // The JSON data includes width, height, members, etc.
+          members: membersWithRotation, // Use members with rotation initialized
           ...asset, // Spread asset after to preserve path, name, category
           path: data.source || asset.path, // Explicitly set path from source
           x: centerX,

@@ -26,9 +26,9 @@ function App() {
   const shortcutHandlers = useMemo(() => {
     const { undo, redo } = useSceneStore.temporal.getState()
     return {
-      library: () => setActivePanel('library'),
-      inspector: () => setActivePanel('inspector'),
-      layers: () => setActivePanel('layers'),
+      library: () => togglePanel('library'),
+      inspector: () => togglePanel('inspector'),
+      layers: () => togglePanel('layers'),
       toggleTimeline: () => toggleTimeline(),
       fitView: () => useUIStore.getState().fitSceneInView?.(),
       closePanel: () => closePanel(),
@@ -48,7 +48,7 @@ function App() {
     }
   }, [
     closePanel,
-    setActivePanel,
+    togglePanel,
     toggleTimeline,
     selectedObjectId,
     removeObject,

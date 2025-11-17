@@ -39,5 +39,11 @@
     "path": "pantins/manu_o.svg",
     "category": "pantins",
     "meta": "pantins/manu_o.json"
+  },
+  {
+    "name": "Manu",
+    "path": "pantins/manu.svg",
+    "category": "pantins",
+    "meta": "pantins/manu.json"
   }
 ]

@@ -3,6 +3,7 @@ import useUIStore from '../../stores/useUIStore'
 import useSceneStore from '../../stores/useSceneStore'
 import SvgObject from '../SvgObject'
 import SvgBackground from '../SvgBackground'
+import Pantin from '../Pantin'
 
 const MIN_SCALE = 0.25
 const MAX_SCALE = 4
@@ -25,12 +26,21 @@ function CanvasArea({ panelContent }) {
   const [isPanning, setIsPanning] = useState(false)
   const panStateRef = useRef(null)
   const draggedObjectRef = useRef(null)
+  const [tempObjectPositions, setTempObjectPositions] = useState({})
 
   // Memoized Calculations
   const sceneDimensions = useMemo(() => {
     if (!sceneBackground?.width || !sceneBackground?.height) return null
     return { width: sceneBackground.width, height: sceneBackground.height }
   }, [sceneBackground])
+
+  // Merge objects with temporary drag positions
+  const displayObjects = useMemo(() => {
+    return objects.map(obj => {
+      const tempPos = tempObjectPositions[obj.id]
+      return tempPos ? { ...obj, ...tempPos } : obj
+    })
+  }, [objects, tempObjectPositions])
 
   const fitScale = useMemo(() => {
     if (!sceneDimensions || !viewport.width || !viewport.height) return 1
@@ -108,16 +118,38 @@ function CanvasArea({ panelContent }) {
       const sceneScale = fitScale * transform.scale
       const dx = (event.clientX - pointerX) / sceneScale
       const dy = (event.clientY - pointerY) / sceneScale
-      updateObject(object.id, { x: initialX + dx, y: initialY + dy })
+      const finalX = initialX + dx
+      const finalY = initialY + dy
+
+      // Store final position in ref for handleObjectDragEnd
+      draggedObjectRef.current.finalX = finalX
+      draggedObjectRef.current.finalY = finalY
+
+      // Update temporary position during drag (no store update = no lag)
+      setTempObjectPositions(prev => ({
+        ...prev,
+        [object.id]: { x: finalX, y: finalY }
+      }))
     },
-    [fitScale, transform.scale, updateObject]
+    [fitScale, transform.scale]
   )
 
   const handleObjectDragEnd = useCallback(function onObjectDragEnd() {
+    const dragged = draggedObjectRef.current
+    if (dragged && dragged.finalX !== undefined && dragged.finalY !== undefined) {
+      // Apply final position to store (only once at the end)
+      updateObject(dragged.object.id, { x: dragged.finalX, y: dragged.finalY })
+      // Clear temporary position
+      setTempObjectPositions(prev => {
+        const newPos = { ...prev }
+        delete newPos[dragged.object.id]
+        return newPos
+      })
+    }
     draggedObjectRef.current = null
     window.removeEventListener('pointermove', handleObjectDrag)
     window.removeEventListener('pointerup', onObjectDragEnd)
-  }, [handleObjectDrag])
+  }, [handleObjectDrag, updateObject])
 
   const handleObjectPointerDown = useCallback(
     (event, object) => {
@@ -204,11 +236,20 @@ function CanvasArea({ panelContent }) {
             />
 
             {/* Objects/Pantins sorted by zIndex - rendered as inline SVG */}
-            {objects
+            {displayObjects
               .filter((obj) => obj.visible)
               .sort((a, b) => a.zIndex - b.zIndex)
               .map((obj) => {
                 const isSelected = obj.id === selectedObjectId
+                if (obj.category === 'pantins') {
+                  return (
+                    <Pantin
+                      key={obj.id}
+                      pantin={obj}
+                      onPointerDown={(e) => handleObjectPointerDown(e, obj)}
+                    />
+                  )
+                }
                 return (
                   <SvgObject
                     key={obj.id}

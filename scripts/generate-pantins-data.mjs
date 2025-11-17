@@ -58,8 +58,7 @@ function generateFor(svgPath) {
 
   const members = [];
   const membersById = {};
-  const variantGroups = [];
-  const variantGroupLookup = {};
+  const variantGroups = {};
 
   /**
    * Fonction récursive pour parcourir le DOM SVG.
@@ -86,30 +85,30 @@ function generateFor(svgPath) {
     if (variantGroup) {
       let variantName = element.getAttribute("data-variant-name") || element.getAttribute("id");
       
-      // Logique pour le nom par défaut (correspondant au len(variant_groups) de Python)
       if (!variantName) {
-        variantName = `${variantGroup}_${variantGroups.length}`;
+        variantName = `${variantGroup}_${Object.keys(variantGroups[variantGroup]?.variants || {}).length}`;
       }
       
       const targetMemberId = memberId || variantGroup;
       const entry = {
-        targetMemberId: targetMemberId,
-        name: variantName,
-        isDefault: parseBool(element.getAttribute("data-variant-default")),
         isBehindParent: parseBool(element.getAttribute("data-isbehindparent")),
       };
 
-      let groupData = variantGroupLookup[variantGroup];
-      if (!groupData) {
-        groupData = {
-          group: variantGroup,
-          defaultVariantId: variantGroup,
-          variants: [],
+      if (!variantGroups[targetMemberId]) {
+        variantGroups[targetMemberId] = {
+          defaultVariant: null,
+          variants: {},
         };
-        variantGroupLookup[variantGroup] = groupData;
-        variantGroups.push(groupData);
       }
-      groupData.variants.push(entry);
+      variantGroups[targetMemberId].variants[variantName] = entry;
+
+      if (parseBool(element.getAttribute("data-variant-default"))) {
+        variantGroups[targetMemberId].defaultVariant = variantName;
+        const targetMember = membersById[targetMemberId];
+        if (targetMember) {
+          targetMember.activeVariant = variantName;
+        }
+      }
     }
 
     // Continuer la traversée
@@ -143,7 +142,7 @@ function generateFor(svgPath) {
     members: members,
   };
 
-  if (variantGroups.length > 0) {
+  if (Object.keys(variantGroups).length > 0) {
     payload.variantGroups = variantGroups;
   }
 
