@@ -97,7 +97,8 @@ function InspectorPanel() {
         y: relativeY,
         relativeX: undefined,
         relativeY: undefined,
-        relativeRotation: undefined
+        relativeRotation: undefined,
+        memberInitialRotation: undefined
       })
     } else {
       // Link to parent - calculate relative coordinates
