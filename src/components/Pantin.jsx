@@ -83,16 +83,20 @@ function Pantin({ pantin, onPointerDown }) {
               const originMatch = styleAttr.match(/transform-origin:\s*([^;]+)/);
               const transformOrigin = originMatch ? originMatch[1] : '50% 50%';
 
-              // Appliquer la rotation
-              const currentTransform = memberElement.getAttribute('transform') || '';
-              const rotationTransform = `rotate(${member.rotation})`;
-
-              // Si un transform existe déjà, le combiner, sinon créer un nouveau
-              if (currentTransform) {
-                memberElement.setAttribute('transform', `${currentTransform} ${rotationTransform}`);
-              } else {
-                memberElement.setAttribute('transform', rotationTransform);
+              // Conserver la transformation d'origine pour éviter d'empiler les rotations
+              const baseTransform = memberElement.getAttribute('data-base-transform')
+                || memberElement.getAttribute('transform')
+                || '';
+              if (!memberElement.hasAttribute('data-base-transform')) {
+                memberElement.setAttribute('data-base-transform', baseTransform);
               }
+
+              // Appliquer la rotation
+              const rotationTransform = `rotate(${member.rotation})`;
+              const combinedTransform = baseTransform
+                ? `${baseTransform} ${rotationTransform}`.trim()
+                : rotationTransform;
+              memberElement.setAttribute('transform', combinedTransform);
 
               // S'assurer que transform-origin est défini
               if (!originMatch) {
