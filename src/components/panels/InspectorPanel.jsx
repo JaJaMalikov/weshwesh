@@ -88,13 +88,8 @@ function InspectorPanel() {
 
     if (parentObjectId === 'none') {
       // Unlink from parent - restore absolute coordinates
-      // ... existing unlink logic ...
       const relativeX = selectedObject.relativeX ?? selectedObject.x
       const relativeY = selectedObject.relativeY ?? selectedObject.y
-      
-      // Note: Pour être parfait, il faudrait aussi recalculer la rotation absolue ici,
-      // mais concentrons-nous sur la demande de "lien".
-      
       updateObject(selectedObjectId, {
         parentObjectId: null,
         parentMemberId: null,
@@ -102,7 +97,7 @@ function InspectorPanel() {
         y: relativeY,
         relativeX: undefined,
         relativeY: undefined,
-        relativeRotation: undefined // On nettoie cette prop obsolète
+        relativeRotation: undefined
       })
     } else {
       // Link to parent - calculate relative coordinates
@@ -115,15 +110,15 @@ function InspectorPanel() {
 
       // Calculate cumulative rotation of the member (including all parent members)
       const memberInitialRotation = getCumulativeMemberRotation(parent, firstMember?.id)
-      
+
       // CORRECTION ICI : Prendre en compte la rotation globale du pantin parent
-      const parentGlobalRotation = parent.rotation || 0;
+      const parentGlobalRotation = parent.rotation || 0
 
       // Calculate relative rotation: 
       // Absolute = ParentGlobal + MemberCumulative + Relative
       // Donc: Relative = Absolute - (ParentGlobal + MemberCumulative)
-      const currentAbsoluteRotation = selectedObject.rotation || 0;
-      const relativeRotation = currentAbsoluteRotation - (parentGlobalRotation + memberInitialRotation);
+      const currentAbsoluteRotation = selectedObject.rotation || 0
+      const relativeRotation = currentAbsoluteRotation - (parentGlobalRotation + memberInitialRotation)
 
       updateObject(selectedObjectId, {
         parentObjectId,
@@ -132,7 +127,7 @@ function InspectorPanel() {
         relativeY,
         rotation: relativeRotation, // On stocke la rotation relative dans 'rotation'
         relativeRotation: undefined, // On supprime l'ancienne prop pour éviter les conflits
-        memberInitialRotation 
+        memberInitialRotation // Store member cumulative rotation at link time
       })
     }
   }
