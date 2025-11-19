@@ -27,7 +27,7 @@ function Pantin({ pantin, onPointerDown }) {
 
         const uniquePrefix = `pantin-${id}-`;
 
-        // --- Préfixes IDs et hrefs ---
+        // --- 1. Nettoyage et Préfixage (IDs, Hrefs, Urls) ---
         const elementsWithId = svg.querySelectorAll('[id]');
         elementsWithId.forEach(element => {
           const oldId = element.getAttribute('id');
@@ -62,34 +62,57 @@ function Pantin({ pantin, onPointerDown }) {
           }
         });
 
-        // --- Rotations Membres ---
+        // --- 2. Application des rotations dynamiques aux membres ---
+        // On stocke aussi les pivots dans un map pour le calcul de position plus tard
+        const memberTransforms = new Map();
+
         if (members) {
           members.forEach(member => {
             const prefixedMemberId = uniquePrefix + member.id;
             const memberElement = svg.querySelector(`[id="${prefixedMemberId}"]`);
 
-            if (memberElement && member.rotation !== undefined) {
+            if (memberElement) {
+              // Récupération du pivot (transform-origin)
               const styleAttr = memberElement.getAttribute('style') || '';
-              const originMatch = styleAttr.match(/transform-origin:\s*([^;]+)/);
-              const transformOrigin = originMatch ? originMatch[1] : '50% 50%';
-
-              const currentTransform = memberElement.getAttribute('transform') || '';
-              const rotationTransform = `rotate(${member.rotation})`;
-
-              if (currentTransform) {
-                memberElement.setAttribute('transform', `${currentTransform} ${rotationTransform}`);
-              } else {
-                memberElement.setAttribute('transform', rotationTransform);
+              const originMatch = styleAttr.match(/transform-origin:\s*([\d.]+)px\s*([\d.]+)px/);
+              
+              // Par défaut centre ou 0,0 si non trouvé, mais les fichiers pantins ont généralement des pivots en px
+              let pivotX = 0;
+              let pivotY = 0;
+              if (originMatch) {
+                 pivotX = parseFloat(originMatch[1]);
+                 pivotY = parseFloat(originMatch[2]);
               }
 
-              if (!originMatch) {
-                memberElement.setAttribute('style', `${styleAttr} transform-origin: ${transformOrigin};`);
+              // Stockage pour usage ultérieur
+              memberTransforms.set(member.id, {
+                rotation: member.rotation || 0,
+                pivotX,
+                pivotY,
+                parentId: member.parent || member.parentId
+              });
+
+              if (member.rotation !== undefined) {
+                const currentTransform = memberElement.getAttribute('transform') || '';
+                const rotationTransform = `rotate(${member.rotation})`; // SVG rotate utilise le pivot défini dans style ou attribut
+                
+                // Application au DOM
+                if (currentTransform) {
+                  memberElement.setAttribute('transform', `${currentTransform} ${rotationTransform}`);
+                } else {
+                  memberElement.setAttribute('transform', rotationTransform);
+                }
+                
+                // On s'assure que le style est présent pour le rendu visuel
+                if (!styleAttr.includes('transform-origin')) {
+                   memberElement.setAttribute('style', `${styleAttr} transform-origin: ${pivotX}px ${pivotY}px;`);
+                }
               }
             }
           });
         }
 
-        // --- Variants ---
+        // --- 3. Gestion Variants & isBehindParent ---
         if (variantGroups && members) {
           for (const memberId in variantGroups) {
             const member = members.find(m => m.id === memberId);
@@ -136,10 +159,10 @@ function Pantin({ pantin, onPointerDown }) {
           });
         }
 
-        const reorderMembers = () => {
-          const elementsWithBehind = svg.querySelectorAll('[data-isbehindparent="true"]');
-          const processed = new Set();
-          elementsWithBehind.forEach(element => {
+        // Réordonnancement pour la profondeur (z-index interne)
+        const elementsWithBehind = svg.querySelectorAll('[data-isbehindparent="true"]');
+        const processed = new Set();
+        elementsWithBehind.forEach(element => {
             let memberElement = element;
             let memberId = element.getAttribute('id');
             let parentId = element.getAttribute('data-parent');
@@ -152,6 +175,8 @@ function Pantin({ pantin, onPointerDown }) {
               }
             }
             if (!memberId || !parentId || parentId === 'root') return;
+            // Nettoyage de l'ID pour correspondre au format sans préfixe si besoin, 
+            // mais ici on travaille sur le DOM donc on utilise les attributs
             if (processed.has(memberId)) return;
             processed.add(memberId);
             
@@ -160,42 +185,52 @@ function Pantin({ pantin, onPointerDown }) {
             if (parentElement && parentElement.contains(memberElement)) {
               parentElement.insertBefore(memberElement, parentElement.firstChild);
             }
-          });
-        };
-        reorderMembers();
+        });
 
-        // --- Calcul rotation statique ---
-        const getHierarchyStaticRotation = (element, rootSvg) => {
-          let totalRotation = 0;
-          let current = element;
-          while (current && current !== rootSvg && rootSvg.contains(current)) {
-            const transform = current.getAttribute('transform');
-            if (transform) {
-              const rotateMatches = [...transform.matchAll(/rotate\s*\(\s*(-?\d+(?:\.\d+)?)/g)];
-              rotateMatches.forEach(m => totalRotation += parseFloat(m[1]));
+        // --- 4. Fonction de calcul de coordonnées inverses ---
+        // Cette fonction prend un point (x,y) dans le repère du Pantin (racine)
+        // et le transforme pour qu'il reste visuellement au même endroit 
+        // malgré les rotations des membres parents.
+        const getInverseTransformedPoint = (targetX, targetY, memberId) => {
+            let x = targetX;
+            let y = targetY;
+            let currentId = memberId;
+            
+            // On construit la pile des transformations à inverser (du parent vers la racine)
+            const chain = [];
+            while (currentId && currentId !== 'root') {
+                const t = memberTransforms.get(currentId);
+                if (t) {
+                    chain.push(t);
+                    currentId = t.parentId;
+                } else {
+                    break;
+                }
             }
-            const style = current.getAttribute('style') || '';
-            const transformStyleMatch = style.match(/transform\s*:\s*([^;]+)/);
-            if (transformStyleMatch) {
-              const cssRotateMatches = [...transformStyleMatch[1].matchAll(/rotate\s*\(\s*(-?\d+(?:\.\d+)?)(deg|rad)?\s*\)/g)];
-              cssRotateMatches.forEach(m => {
-                const val = parseFloat(m[1]);
-                const unit = m[2];
-                totalRotation += (unit === 'rad') ? val * (180 / Math.PI) : val;
-              });
+            
+            // On applique les transformations inverses en partant de la racine vers le membre
+            // (L'ordre inverse de l'application visuelle)
+            // Visuel : Racine -> Rotation A -> Rotation B -> Objet
+            // Calcul : Objet <- InvRot B <- InvRot A <- Racine
+            for (let i = chain.length - 1; i >= 0; i--) {
+                const { rotation, pivotX, pivotY } = chain[i];
+                if (rotation !== 0) {
+                    // Rotation inverse autour du pivot
+                    const rad = (-rotation * Math.PI) / 180;
+                    const cos = Math.cos(rad);
+                    const sin = Math.sin(rad);
+                    
+                    const dx = x - pivotX;
+                    const dy = y - pivotY;
+                    
+                    x = pivotX + (dx * cos - dy * sin);
+                    y = pivotY + (dx * sin + dy * cos);
+                }
             }
-            const id = current.getAttribute('id');
-            if (id && id.startsWith(uniquePrefix)) {
-              const memberId = id.replace(uniquePrefix, '');
-              const member = members.find(m => m.id === memberId);
-              if (member && member.rotation) totalRotation -= member.rotation;
-            }
-            current = current.parentElement;
-          }
-          return totalRotation;
+            return { x, y };
         };
 
-        // --- Insertion Objets Enfants ---
+        // --- 5. Insertion des objets enfants ---
         childObjects.forEach(childObj => {
           if (!childObj.parentMemberId) return;
 
@@ -203,30 +238,32 @@ function Pantin({ pantin, onPointerDown }) {
           const memberElement = svg.querySelector(`[id="${prefixedMemberId}"]`);
 
           if (memberElement) {
-            // Utilisation des coordonnées x/y (qui sont locales)
-            const objX = childObj.x ?? 0;
-            const objY = childObj.y ?? 0;
+            // Les coords x/y du store sont relatives à la racine du pantin (bounding box)
+            const rootX = childObj.x ?? 0;
+            const rootY = childObj.y ?? 0;
+
+            // On convertit ces coords pour compenser la rotation du membre
+            const localPos = getInverseTransformedPoint(rootX, rootY, childObj.parentMemberId);
 
             if (childObj.category === 'objets') {
-              const staticRotation = getHierarchyStaticRotation(memberElement, svg);
               const image = doc.createElementNS('http://www.w3.org/2000/svg', 'image');
               
               image.setAttribute('href', `/assets/${childObj.path}`);
-              image.setAttribute('x', objX);
-              image.setAttribute('y', objY);
+              image.setAttribute('x', localPos.x);
+              image.setAttribute('y', localPos.y);
               image.setAttribute('width', (childObj.width || 100) * childObj.scale);
               image.setAttribute('height', (childObj.height || 100) * childObj.scale);
 
-              const desiredRotation = childObj.rotation || 0;
-              const compensationRotation = desiredRotation - staticRotation;
+              // Rotation : L'objet a une rotation 'childObj.rotation' (relative au membre)
+              // C'est ce qu'on veut appliquer directement car on est dans le groupe du membre.
+              const finalRotation = childObj.rotation || 0;
 
-              if (compensationRotation !== 0) {
-                const cx = objX + ((childObj.width || 100) * childObj.scale) / 2;
-                const cy = objY + ((childObj.height || 100) * childObj.scale) / 2;
-                image.setAttribute('transform', `rotate(${compensationRotation} ${cx} ${cy})`);
+              if (finalRotation !== 0) {
+                const cx = localPos.x + ((childObj.width || 100) * childObj.scale) / 2;
+                const cy = localPos.y + ((childObj.height || 100) * childObj.scale) / 2;
+                image.setAttribute('transform', `rotate(${finalRotation} ${cx} ${cy})`);
               }
 
-              // Attribut critique pour la sélection
               image.setAttribute('data-child-object', 'true');
               image.setAttribute('data-child-object-id', childObj.id);
               
