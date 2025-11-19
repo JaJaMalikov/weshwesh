@@ -52,6 +52,7 @@ function InspectorPanel() {
     updateObject(selectedObjectId, { members: updatedMembers })
   }
 
+  // Calcul de la rotation absolue d'un membre (pour la soustraction correcte)
   const getMemberAbsoluteRotation = (pantin, memberId) => {
     if (!pantin?.members) return 0
     let totalRotation = pantin.rotation || 0
@@ -66,7 +67,7 @@ function InspectorPanel() {
     return totalRotation
   }
 
-  // Utilitaire pour tourner un point autour d'un centre (0,0)
+  // Utilitaire rotation point
   const rotatePoint = (x, y, angleDeg) => {
     const angleRad = (angleDeg * Math.PI) / 180
     return {
@@ -79,18 +80,21 @@ function InspectorPanel() {
     if (!selectedObjectId || !selectedObject) return
 
     if (parentObjectId === 'none') {
-      // Délier : Conversion Local -> Monde (approximatif sans les pivots exacts)
-      // On utilise les coordonnées actuelles comme nouvelles coordonnées monde
+      // Délier : On garde les coords actuelles, elles deviennent absolues (monde)
+      // Note : Pour être exact, il faudrait appliquer la transformation inverse (Monde -> Local Pantin -> Monde)
+      // mais ici on simplifie en gardant la position visuelle relative au dernier parent.
       updateObject(selectedObjectId, {
         parentObjectId: null,
         parentMemberId: null,
-        // On garde x, y, rotation tels quels (ils deviennent absolus)
         relativeX: undefined, 
         relativeY: undefined,
         relativeRotation: undefined
       })
     } else {
-      // Lier : Conversion Monde -> Local
+      // Lier : Calcul des coordonnées dans le référentiel du Pantin (Racine)
+      // On ne se soucie pas de la rotation du membre ici, c'est Pantin.jsx qui gère l'affichage.
+      // On se soucie uniquement de placer l'objet correctement par rapport au cadre du Pantin.
+      
       const parent = objects.find(obj => obj.id === parentObjectId)
       const firstMember = parent?.members?.[0]
       
@@ -99,24 +103,22 @@ function InspectorPanel() {
       const parentWidth = parent.width || 0
       const parentHeight = parent.height || 0
 
-      // 1. Calculer le centre du pantin (en coordonnées monde)
-      // Le pantin tourne autour de son centre visuel
+      // 1. Centre du pantin en monde
       const pantinCenterX = parent.x + (parentWidth * parentScale) / 2
       const pantinCenterY = parent.y + (parentHeight * parentScale) / 2
 
-      // 2. Vecteur Objet -> Centre Pantin
+      // 2. Vecteur Objet -> Centre
       const dx = selectedObject.x - pantinCenterX
       const dy = selectedObject.y - pantinCenterY
 
-      // 3. Appliquer la rotation INVERSE du pantin à ce vecteur
+      // 3. Déroter par rapport au Pantin global
       const unrotated = rotatePoint(dx, dy, -parentRot)
 
-      // 4. Convertir en coordonnées locales SVG (non scalées)
-      // On déplace l'origine du centre vers le top-left (0,0) du SVG
+      // 4. Coordonnées locales dans le viewBox du Pantin
       const localX = (unrotated.x / parentScale) + parentWidth / 2
       const localY = (unrotated.y / parentScale) + parentHeight / 2
 
-      // Calcul de la rotation locale
+      // 5. Rotation : On stocke la rotation relative au membre
       const currentAbsRotation = selectedObject.rotation || 0
       const parentMemberAbsRotation = getMemberAbsoluteRotation(parent, firstMember?.id)
       const newLocalRotation = currentAbsRotation - parentMemberAbsRotation
@@ -124,10 +126,10 @@ function InspectorPanel() {
       updateObject(selectedObjectId, {
         parentObjectId,
         parentMemberId: firstMember?.id || null,
-        x: localX, // On utilise x/y comme coords locales désormais
+        x: localX,
         y: localY,
         rotation: newLocalRotation,
-        relativeX: undefined, // Nettoyage
+        relativeX: undefined,
         relativeY: undefined,
         relativeRotation: undefined
       })
@@ -137,7 +139,7 @@ function InspectorPanel() {
   const handleParentMemberChange = (parentMemberId) => {
     if (!selectedObjectId || !parentPantin) return
 
-    // Ajustement de la rotation lors du changement de membre
+    // Ajustement rotation seulement
     const oldParentMemberId = selectedObject.parentMemberId
     const oldParentAbsRotation = getMemberAbsoluteRotation(parentPantin, oldParentMemberId)
     const currentObjectAbsRotation = oldParentAbsRotation + (selectedObject.rotation || 0)
