@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import useSceneStore from '../stores/useSceneStore';
+import { fetchSvgText } from '../utils/svgCache';
 
 function Pantin({ pantin, onPointerDown }) {
   const { id, members, source, x, y, rotation, scale, variantGroups, width, height, viewBox } = pantin;
@@ -13,13 +14,15 @@ function Pantin({ pantin, onPointerDown }) {
     if (!source) return;
     let cancelled = false;
 
-    fetch(`/assets/${source}`)
-      .then((res) => {
-        if (!res.ok) throw new Error(`Failed to fetch SVG: ${res.statusText}`);
-        return res.text();
-      })
+    const assetUrl = source.startsWith('/') ? source : `/assets/${source}`;
+
+    fetchSvgText(assetUrl)
       .then((svgString) => {
         if (cancelled) return;
+
+        if (!svgString) {
+          return;
+        }
 
         const parser = new DOMParser();
         const doc = parser.parseFromString(svgString, 'image/svg+xml');
@@ -205,23 +208,6 @@ function Pantin({ pantin, onPointerDown }) {
         };
 
         reorderMembers();
-
-        // Helper function to calculate cumulative rotation of a member
-        const getCumulativeRotation = (memberId) => {
-          let totalRot = 0;
-          let currentId = memberId;
-
-          while (currentId) {
-            const member = members.find(m => m.id === currentId);
-            if (!member) break;
-
-            totalRot += member.rotation || 0;
-            const parentId = member.parent || member.parentId;
-            currentId = (parentId === 'root' || !parentId) ? null : parentId;
-          }
-
-          return totalRot;
-        };
 
         // Insérer les objets enfants dans les membres parents
         childObjects.forEach(childObj => {

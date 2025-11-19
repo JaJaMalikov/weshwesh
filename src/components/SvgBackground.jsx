@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { fetchSvgText } from '../utils/svgCache'
 
 function SvgBackground({ src, width, height }) {
   const [svgContent, setSvgContent] = useState(null)
@@ -20,21 +21,19 @@ function SvgBackground({ src, width, height }) {
       return
     }
 
-    fetch(src)
-      .then((res) => {
-        if (!res.ok) throw new Error(`Failed to fetch background: ${res.statusText}`)
-        return res.text()
-      })
+    fetchSvgText(src)
       .then((text) => {
-        if (!cancelled) {
-          const parser = new DOMParser()
-          const doc = parser.parseFromString(text, 'image/svg+xml')
-          const svgElement = doc.querySelector('svg')
+        if (cancelled || !text) {
+          return
+        }
 
-          if (svgElement) {
-            const innerHTML = svgElement.innerHTML
-            setSvgContent({ type: 'svg', innerHTML })
-          }
+        const parser = new DOMParser()
+        const doc = parser.parseFromString(text, 'image/svg+xml')
+        const svgElement = doc.querySelector('svg')
+
+        if (svgElement) {
+          const innerHTML = svgElement.innerHTML
+          setSvgContent({ type: 'svg', innerHTML })
         }
       })
       .catch((err) => {

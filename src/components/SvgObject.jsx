@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { fetchSvgText } from '../utils/svgCache'
 
 function SvgObject({ src, x, y, rotation, scale, onPointerDown, className }) {
   const [svgContent, setSvgContent] = useState(null)
@@ -7,35 +8,32 @@ function SvgObject({ src, x, y, rotation, scale, onPointerDown, className }) {
     if (!src) return
     let cancelled = false
 
-    fetch(src)
-      .then((res) => {
-        if (!res.ok) throw new Error(`Failed to fetch SVG: ${res.statusText}`)
-        return res.text()
-      })
+    fetchSvgText(src)
       .then((text) => {
-        if (!cancelled) {
-          // Parse SVG to extract the content
-          const parser = new DOMParser()
-          const doc = parser.parseFromString(text, 'image/svg+xml')
-          const svgElement = doc.querySelector('svg')
-
-          if (svgElement) {
-            // Get viewBox or dimensions
-            const viewBox = svgElement.getAttribute('viewBox')
-            const width = svgElement.getAttribute('width')
-            const height = svgElement.getAttribute('height')
-
-            // Extract inner content
-            const innerHTML = svgElement.innerHTML
-
-            setSvgContent({
-              innerHTML,
-              viewBox,
-              width,
-              height,
-            })
-          }
+        if (cancelled || !text) {
+          return
         }
+
+        const parser = new DOMParser()
+        const doc = parser.parseFromString(text, 'image/svg+xml')
+        const svgElement = doc.querySelector('svg')
+
+        if (!svgElement) {
+          return
+        }
+
+        const viewBox = svgElement.getAttribute('viewBox')
+        const width = svgElement.getAttribute('width')
+        const height = svgElement.getAttribute('height')
+
+        const innerHTML = svgElement.innerHTML
+
+        setSvgContent({
+          innerHTML,
+          viewBox,
+          width,
+          height,
+        })
       })
       .catch((err) => {
         if (!cancelled) {
