@@ -244,8 +244,9 @@ function Pantin({ pantin, onPointerDown }) {
               image.setAttribute('width', (childObj.width || 100) * childObj.scale);
               image.setAttribute('height', (childObj.height || 100) * childObj.scale);
 
-              // Use only relativeRotation (already calculated at link time)
-              const totalRotation = childObj.relativeRotation ?? 0;
+              // CORRECTION ICI : Utiliser 'rotation' au lieu de 'relativeRotation'
+              // La rotation est relative au membre parent
+              const totalRotation = childObj.rotation || 0;
 
               if (totalRotation !== 0) {
                 const cx = objX + ((childObj.width || 100) * childObj.scale) / 2;
