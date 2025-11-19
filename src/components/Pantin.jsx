@@ -76,7 +76,7 @@ function Pantin({ pantin, onPointerDown }) {
           }
         });
 
-        // Appliquer les rotations aux membres
+        // Appliquer les rotations aux membres (dynamique)
         if (members) {
           members.forEach(member => {
             const prefixedMemberId = uniquePrefix + member.id;
@@ -128,7 +128,6 @@ function Pantin({ pantin, onPointerDown }) {
                   variantElement.style.display = 'block';
 
                   // Appliquer isBehindParent du variant actif sur le MEMBRE
-                  // Si le variant définit isBehindParent, l'utiliser, sinon utiliser la valeur du membre
                   const variantConfig = groupVariants[variantName];
                   if (memberElement) {
                     const isBehind = variantConfig?.isBehindParent !== undefined
@@ -138,9 +137,7 @@ function Pantin({ pantin, onPointerDown }) {
                     if (isBehind) {
                       memberElement.setAttribute('data-isbehindparent', 'true');
                     } else {
-                      // Retirer l'attribut du membre ET de tous ses variants
                       memberElement.removeAttribute('data-isbehindparent');
-                      // Retirer aussi des variants pour éviter qu'ils soient trouvés par querySelectorAll
                       memberElement.querySelectorAll('[data-isbehindparent]').forEach(el => {
                         el.removeAttribute('data-isbehindparent');
                       });
@@ -157,7 +154,6 @@ function Pantin({ pantin, onPointerDown }) {
         // Appliquer isBehindParent aux membres sans variants
         if (members) {
           members.forEach(member => {
-            // Ne traiter que les membres sans variants
             if (member.isBehindParent && !variantGroups?.[member.id]) {
               const prefixedMemberId = uniquePrefix + member.id;
               const memberElement = svg.querySelector(`[id="${prefixedMemberId}"]`);
@@ -178,9 +174,7 @@ function Pantin({ pantin, onPointerDown }) {
             let memberId = element.getAttribute('id');
             let parentId = element.getAttribute('data-parent');
 
-            // Si c'est un variant (pas d'id), remonter au membre parent
             if (!memberId && element.hasAttribute('data-variant-name')) {
-              // C'est un variant, trouver le membre parent
               memberElement = element.closest('[data-membre="true"]');
               if (memberElement) {
                 memberId = memberElement.getAttribute('id');
@@ -192,13 +186,10 @@ function Pantin({ pantin, onPointerDown }) {
             if (processed.has(memberId)) return;
 
             processed.add(memberId);
-
-            // Trouver l'élément parent avec le bon ID (préfixé)
             const prefixedParentId = uniquePrefix + parentId;
             const parentElement = svg.querySelector(`[id="${prefixedParentId}"]`);
 
             if (parentElement && parentElement.contains(memberElement)) {
-              // Déplacer l'élément au début du parent (premier enfant = rendu en arrière)
               parentElement.insertBefore(memberElement, parentElement.firstChild);
             }
           });
@@ -206,21 +197,43 @@ function Pantin({ pantin, onPointerDown }) {
 
         reorderMembers();
 
-        // Helper function to calculate cumulative rotation of a member
-        const getCumulativeRotation = (memberId) => {
-          let totalRot = 0;
-          let currentId = memberId;
+        // Helper: Calculate total rotation of the hierarchy (Static + Dynamic)
+        // Cela permet de soustraire la rotation native du SVG (Statique) qui n'est pas connue de l'Inspecteur.
+        const getHierarchyStaticRotation = (element, rootSvg) => {
+          let staticRotation = 0;
+          let current = element;
 
-          while (currentId) {
-            const member = members.find(m => m.id === currentId);
-            if (!member) break;
+          // Remonter jusqu'à la racine du SVG
+          while (current && current !== rootSvg && rootSvg.contains(current)) {
+            const transform = current.getAttribute('transform');
+            if (transform) {
+              // Regex pour extraire tous les "rotate(ANGLE ...)"
+              // On additionne toutes les rotations trouvées (statiques et dynamiques)
+              const matches = [...transform.matchAll(/rotate\s*\(\s*(-?\d+(?:\.\d+)?)/g)];
+              matches.forEach(match => {
+                staticRotation += parseFloat(match[1]);
+              });
+            }
+            
+            // Si c'est un membre avec une rotation dynamique connue, on la soustrait
+            // car l'Inspecteur a déjà compensé pour la rotation dynamique.
+            // On ne veut compenser QUE pour la rotation statique (native du SVG).
+            // Note: Comme on modifie le DOM 'transform' plus haut pour ajouter la rotation dynamique,
+            // 'transform' contient maintenant (Static + Dynamic).
+            // Donc Total = Static + Dynamic.
+            // On veut Static = Total - Dynamic.
+            const id = current.getAttribute('id');
+            if (id && id.startsWith(uniquePrefix)) {
+              const memberId = id.replace(uniquePrefix, '');
+              const member = members.find(m => m.id === memberId);
+              if (member && member.rotation) {
+                staticRotation -= member.rotation;
+              }
+            }
 
-            totalRot += member.rotation || 0;
-            const parentId = member.parent || member.parentId;
-            currentId = (parentId === 'root' || !parentId) ? null : parentId;
+            current = current.parentElement;
           }
-
-          return totalRot;
+          return staticRotation;
         };
 
         // Insérer les objets enfants dans les membres parents
@@ -231,11 +244,12 @@ function Pantin({ pantin, onPointerDown }) {
           const memberElement = svg.querySelector(`[id="${prefixedMemberId}"]`);
 
           if (memberElement) {
-            // Utiliser les coordonnées relatives (ou absolues si pas définies)
             const objX = childObj.relativeX ?? childObj.x;
             const objY = childObj.relativeY ?? childObj.y;
 
-            // Créer un élément image ou utiliser le SVG de l'objet
+            // Calculer la rotation "parasite" (statique) du SVG
+            const staticRotation = getHierarchyStaticRotation(memberElement, svg);
+
             if (childObj.category === 'objets') {
               const image = doc.createElementNS('http://www.w3.org/2000/svg', 'image');
               image.setAttribute('href', `/assets/${childObj.path}`);
@@ -244,14 +258,15 @@ function Pantin({ pantin, onPointerDown }) {
               image.setAttribute('width', (childObj.width || 100) * childObj.scale);
               image.setAttribute('height', (childObj.height || 100) * childObj.scale);
 
-              // CORRECTION ICI : Utiliser 'rotation' au lieu de 'relativeRotation'
-              // La rotation est relative au membre parent
-              const totalRotation = childObj.rotation || 0;
+              // CORRECTION : On applique la rotation désirée MOINS la rotation statique
+              // pour annuler l'effet de la structure du SVG.
+              const desiredRotation = childObj.rotation || 0;
+              const finalRotation = desiredRotation - staticRotation;
 
-              if (totalRotation !== 0) {
+              if (finalRotation !== 0) {
                 const cx = objX + ((childObj.width || 100) * childObj.scale) / 2;
                 const cy = objY + ((childObj.height || 100) * childObj.scale) / 2;
-                image.setAttribute('transform', `rotate(${totalRotation} ${cx} ${cy})`);
+                image.setAttribute('transform', `rotate(${finalRotation} ${cx} ${cy})`);
               }
 
               image.setAttribute('data-child-object', 'true');
