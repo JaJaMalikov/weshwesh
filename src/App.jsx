@@ -1,4 +1,4 @@
-import { useMemo } from 'react'
+import { useCallback, useMemo } from 'react'
 import Sidebar from './components/layout/Sidebar'
 import CanvasArea from './components/layout/CanvasArea'
 import TimelinePanel from './components/panels/TimelinePanel'
@@ -6,22 +6,43 @@ import { PANEL_CONFIG_MAP } from './config/panels'
 import useShortcuts from './hooks/useShortcuts'
 import useUIStore from './stores/useUIStore'
 import useSceneStore from './stores/useSceneStore'
+import { useShallow } from 'zustand/react/shallow'
 import './App.css'
 
 function App() {
-  const activePanel = useUIStore((state) => state.activePanel)
-  const timelineOpen = useUIStore((state) => state.timelineOpen)
-  const setActivePanel = useUIStore((state) => state.setActivePanel)
-  const togglePanel = useUIStore((state) => state.togglePanel)
-  const closePanel = useUIStore((state) => state.closePanel)
-  const toggleTimeline = useUIStore((state) => state.toggleTimeline)
-  const setTimelineOpen = useUIStore((state) => state.setTimelineOpen)
-  const removeObject = useSceneStore((state) => state.removeObject)
-  const selectedObjectId = useSceneStore((state) => state.selectedObjectId)
+  const {
+    activePanel,
+    timelineOpen,
+    togglePanel,
+    closePanel,
+    toggleTimeline,
+    setTimelineOpen,
+  } = useUIStore(
+    useShallow((state) => ({
+      activePanel: state.activePanel,
+      timelineOpen: state.timelineOpen,
+      togglePanel: state.togglePanel,
+      closePanel: state.closePanel,
+      toggleTimeline: state.toggleTimeline,
+      setTimelineOpen: state.setTimelineOpen,
+    })),
+  )
+  const { removeObject, selectedObjectId } = useSceneStore(
+    useShallow((state) => ({
+      removeObject: state.removeObject,
+      selectedObjectId: state.selectedObjectId,
+    })),
+  )
   const activePanelConfig = activePanel
     ? PANEL_CONFIG_MAP[activePanel]
     : null
   const ActivePanelComponent = activePanelConfig?.Component
+
+  const deleteSelectedObject = useCallback(() => {
+    if (selectedObjectId) {
+      removeObject(selectedObjectId)
+    }
+  }, [removeObject, selectedObjectId])
 
   const shortcutHandlers = useMemo(() => {
     const { undo, redo } = useSceneStore.temporal.getState()
@@ -32,26 +53,17 @@ function App() {
       toggleTimeline: () => toggleTimeline(),
       fitView: () => useUIStore.getState().fitSceneInView?.(),
       closePanel: () => closePanel(),
-      deleteObject: () => {
-        if (selectedObjectId) {
-          removeObject(selectedObjectId)
-        }
-      },
-      deleteObjectAlt: () => {
-        if (selectedObjectId) {
-          removeObject(selectedObjectId)
-        }
-      },
+      deleteObject: deleteSelectedObject,
+      deleteObjectAlt: deleteSelectedObject,
       undo: () => undo(),
       redo: () => redo(),
       redoAlt: () => redo(),
     }
   }, [
+    deleteSelectedObject,
     closePanel,
     togglePanel,
     toggleTimeline,
-    selectedObjectId,
-    removeObject,
   ])
 
   useShortcuts(shortcutHandlers)

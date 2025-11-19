@@ -206,23 +206,6 @@ function Pantin({ pantin, onPointerDown }) {
 
         reorderMembers();
 
-        // Helper function to calculate cumulative rotation of a member
-        const getCumulativeRotation = (memberId) => {
-          let totalRot = 0;
-          let currentId = memberId;
-
-          while (currentId) {
-            const member = members.find(m => m.id === currentId);
-            if (!member) break;
-
-            totalRot += member.rotation || 0;
-            const parentId = member.parent || member.parentId;
-            currentId = (parentId === 'root' || !parentId) ? null : parentId;
-          }
-
-          return totalRot;
-        };
-
         // Insérer les objets enfants dans les membres parents
         childObjects.forEach(childObj => {
           if (!childObj.parentMemberId) return;
