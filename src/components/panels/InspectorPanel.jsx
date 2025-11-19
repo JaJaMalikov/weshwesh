@@ -90,6 +90,9 @@ function InspectorPanel() {
       // Unlink from parent - restore absolute coordinates
       const relativeX = selectedObject.relativeX ?? selectedObject.x
       const relativeY = selectedObject.relativeY ?? selectedObject.y
+      
+      // Note: La rotation absolue n'est pas recalculée parfaitement ici car on manque
+      // de données sur la structure SVG, mais on nettoie les props.
       updateObject(selectedObjectId, {
         parentObjectId: null,
         parentMemberId: null,
@@ -110,13 +113,13 @@ function InspectorPanel() {
 
       // Calculate cumulative rotation of the member (including all parent members)
       const memberInitialRotation = getCumulativeMemberRotation(parent, firstMember?.id)
-
-      // CORRECTION ICI : Prendre en compte la rotation globale du pantin parent
+      
+      // CORRECTION : On inclut la rotation globale du pantin
       const parentGlobalRotation = parent.rotation || 0
 
       // Calculate relative rotation: 
-      // Absolute = ParentGlobal + MemberCumulative + Relative
-      // Donc: Relative = Absolute - (ParentGlobal + MemberCumulative)
+      // On veut que Rotation_Objet = Rotation_Pantin + Rotation_Membre + Rotation_Relative
+      // Donc Rotation_Relative = Rotation_Objet - (Rotation_Pantin + Rotation_Membre)
       const currentAbsoluteRotation = selectedObject.rotation || 0
       const relativeRotation = currentAbsoluteRotation - (parentGlobalRotation + memberInitialRotation)
 
@@ -125,9 +128,9 @@ function InspectorPanel() {
         parentMemberId: firstMember?.id || null,
         relativeX,
         relativeY,
-        rotation: relativeRotation, // On stocke la rotation relative dans 'rotation'
-        relativeRotation: undefined, // On supprime l'ancienne prop pour éviter les conflits
-        memberInitialRotation // Store member cumulative rotation at link time
+        rotation: relativeRotation, // On utilise la prop standard 'rotation'
+        relativeRotation: undefined, 
+        memberInitialRotation 
       })
     }
   }
@@ -135,12 +138,11 @@ function InspectorPanel() {
   const handleParentMemberChange = (parentMemberId) => {
     if (!selectedObjectId || !parentPantin) return
 
-    // Calculate cumulative rotation of the new member
     const memberInitialRotation = getCumulativeMemberRotation(parentPantin, parentMemberId)
 
     updateObject(selectedObjectId, {
       parentMemberId,
-      memberInitialRotation // Update member cumulative rotation reference
+      memberInitialRotation
     })
   }
 
