@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import useUIStore from '../../stores/useUIStore'
+import useUIStore '../../stores/useUIStore'
 import useSceneStore from '../../stores/useSceneStore'
 import SvgObject from '../SvgObject'
 import SvgBackground from '../SvgBackground'
@@ -9,7 +9,6 @@ const MIN_SCALE = 0.25
 const MAX_SCALE = 4
 
 function CanvasArea({ panelContent }) {
-  // Store Selectors
   const sceneBackground = useUIStore((state) => state.sceneBackground)
   const onStoreEvent = useUIStore((state) => state.on)
   const offStoreEvent = useUIStore((state) => state.off)
@@ -18,7 +17,6 @@ function CanvasArea({ panelContent }) {
   const selectObject = useSceneStore((state) => state.selectObject)
   const updateObject = useSceneStore((state) => state.updateObject)
 
-  // Component State & Refs
   const containerRef = useRef(null)
   const stageRef = useRef(null)
   const [viewport, setViewport] = useState({ width: 0, height: 0 })
@@ -28,13 +26,11 @@ function CanvasArea({ panelContent }) {
   const draggedObjectRef = useRef(null)
   const [tempObjectPositions, setTempObjectPositions] = useState({})
 
-  // Memoized Calculations
   const sceneDimensions = useMemo(() => {
     if (!sceneBackground?.width || !sceneBackground?.height) return null
     return { width: sceneBackground.width, height: sceneBackground.height }
   }, [sceneBackground])
 
-  // Merge objects with temporary drag positions
   const displayObjects = useMemo(() => {
     return objects.map(obj => {
       const tempPos = tempObjectPositions[obj.id]
@@ -50,7 +46,6 @@ function CanvasArea({ panelContent }) {
     )
   }, [sceneDimensions, viewport])
 
-  // Callbacks & Handlers
   const resetView = useCallback(() => {
     setTransform({ scale: 1, x: 0, y: 0 })
   }, [])
@@ -116,16 +111,20 @@ function CanvasArea({ panelContent }) {
       const { initialX, initialY, pointerX, pointerY, object } =
         draggedObjectRef.current
       const sceneScale = fitScale * transform.scale
+      
+      // Calcul du delta en pixels écran converti en pixels scène
       const dx = (event.clientX - pointerX) / sceneScale
       const dy = (event.clientY - pointerY) / sceneScale
+      
+      // Note : Si l'objet est parenté (dans un groupe transformé), ce déplacement 
+      // ne suivra pas les axes locaux du parent, mais les axes de l'écran.
+      // C'est le comportement attendu pour un drag & drop intuitif 2D.
       const finalX = initialX + dx
       const finalY = initialY + dy
 
-      // Store final position in ref for handleObjectDragEnd
       draggedObjectRef.current.finalX = finalX
       draggedObjectRef.current.finalY = finalY
 
-      // Update temporary position during drag (no store update = no lag)
       setTempObjectPositions(prev => ({
         ...prev,
         [object.id]: { x: finalX, y: finalY }
@@ -137,9 +136,7 @@ function CanvasArea({ panelContent }) {
   const handleObjectDragEnd = useCallback(function onObjectDragEnd() {
     const dragged = draggedObjectRef.current
     if (dragged && dragged.finalX !== undefined && dragged.finalY !== undefined) {
-      // Apply final position to store (only once at the end)
       updateObject(dragged.object.id, { x: dragged.finalX, y: dragged.finalY })
-      // Clear temporary position
       setTempObjectPositions(prev => {
         const newPos = { ...prev }
         delete newPos[dragged.object.id]
@@ -153,23 +150,35 @@ function CanvasArea({ panelContent }) {
 
   const handleObjectPointerDown = useCallback(
     (event, object) => {
-      if (event.button !== 0) return // Ignore right/middle clicks
+      if (event.button !== 0) return
       event.stopPropagation()
-      selectObject(object.id)
+
+      // -- CORRECTION : Détection de la sélection d'un objet enfant --
+      let targetObject = object;
+      const childId = event.target.getAttribute('data-child-object-id');
+      
+      if (childId) {
+        // Si on a cliqué sur un enfant à l'intérieur du SVG du pantin
+        const foundChild = objects.find(o => o.id === childId);
+        if (foundChild) {
+          targetObject = foundChild;
+        }
+      }
+      // -------------------------------------------------------------
+
+      selectObject(targetObject.id)
       draggedObjectRef.current = {
-        object,
-        initialX: object.x,
-        initialY: object.y,
+        object: targetObject,
+        initialX: targetObject.x,
+        initialY: targetObject.y,
         pointerX: event.clientX,
         pointerY: event.clientY,
       }
       window.addEventListener('pointermove', handleObjectDrag)
       window.addEventListener('pointerup', handleObjectDragEnd)
     },
-    [handleObjectDrag, handleObjectDragEnd, selectObject]
+    [handleObjectDrag, handleObjectDragEnd, selectObject, objects]
   )
-
-  // --- Effects ---
 
   useEffect(() => {
     const node = containerRef.current
@@ -206,8 +215,6 @@ function CanvasArea({ panelContent }) {
   const hasScene = Boolean(sceneBackground && sceneDimensions && fitScale)
   const stageScale = hasScene ? fitScale * transform.scale : 1
 
-  // --- Render ---
-
   return (
     <div className="workspace-main">
       {panelContent}
@@ -228,16 +235,14 @@ function CanvasArea({ panelContent }) {
             onDoubleClick={resetView}
             onDragOver={(e) => e.preventDefault()}
           >
-            {/* Background as inline SVG */}
             <SvgBackground
               src={`/assets/${sceneBackground.path}`}
               width={sceneDimensions.width}
               height={sceneDimensions.height}
             />
 
-            {/* Objects/Pantins sorted by zIndex - rendered as inline SVG */}
             {displayObjects
-              .filter((obj) => obj.visible && !obj.parentObjectId) // Exclude parented objects (rendered inside pantins)
+              .filter((obj) => obj.visible && !obj.parentObjectId)
               .sort((a, b) => a.zIndex - b.zIndex)
               .map((obj) => {
                 const isSelected = obj.id === selectedObjectId
