@@ -27,7 +27,7 @@ function Pantin({ pantin, onPointerDown }) {
 
         const uniquePrefix = `pantin-${id}-`;
 
-        // Préfixer tous les IDs
+        // --- Préfixes IDs et hrefs ---
         const elementsWithId = svg.querySelectorAll('[id]');
         elementsWithId.forEach(element => {
           const oldId = element.getAttribute('id');
@@ -35,7 +35,6 @@ function Pantin({ pantin, onPointerDown }) {
           element.setAttribute('id', newId);
         });
 
-        // Mettre à jour les hrefs
         const elementsWithHref = svg.querySelectorAll('[href], [xlink\\:href]');
         elementsWithHref.forEach(element => {
           const href = element.getAttribute('href') || element.getAttribute('xlink:href');
@@ -46,7 +45,6 @@ function Pantin({ pantin, onPointerDown }) {
           }
         });
 
-        // Mettre à jour les styles url()
         const attributesWithUrl = ['fill', 'stroke', 'clip-path', 'mask', 'filter', 'marker-start', 'marker-mid', 'marker-end'];
         const allElements = svg.querySelectorAll('*');
         allElements.forEach(element => {
@@ -64,7 +62,7 @@ function Pantin({ pantin, onPointerDown }) {
           }
         });
 
-        // Appliquer les rotations aux membres
+        // --- Rotations Membres ---
         if (members) {
           members.forEach(member => {
             const prefixedMemberId = uniquePrefix + member.id;
@@ -74,8 +72,7 @@ function Pantin({ pantin, onPointerDown }) {
               const styleAttr = memberElement.getAttribute('style') || '';
               const originMatch = styleAttr.match(/transform-origin:\s*([^;]+)/);
               const transformOrigin = originMatch ? originMatch[1] : '50% 50%';
-              
-              // On applique seulement la rotation dynamique
+
               const currentTransform = memberElement.getAttribute('transform') || '';
               const rotationTransform = `rotate(${member.rotation})`;
 
@@ -92,7 +89,7 @@ function Pantin({ pantin, onPointerDown }) {
           });
         }
 
-        // Gestion des variants
+        // --- Variants ---
         if (variantGroups && members) {
           for (const memberId in variantGroups) {
             const member = members.find(m => m.id === memberId);
@@ -129,7 +126,6 @@ function Pantin({ pantin, onPointerDown }) {
           }
         }
 
-        // Fallback isBehindParent
         if (members) {
           members.forEach(member => {
             if (member.isBehindParent && !variantGroups?.[member.id]) {
@@ -140,11 +136,9 @@ function Pantin({ pantin, onPointerDown }) {
           });
         }
 
-        // Reordering
         const reorderMembers = () => {
           const elementsWithBehind = svg.querySelectorAll('[data-isbehindparent="true"]');
           const processed = new Set();
-
           elementsWithBehind.forEach(element => {
             let memberElement = element;
             let memberId = element.getAttribute('id');
@@ -157,23 +151,51 @@ function Pantin({ pantin, onPointerDown }) {
                 parentId = memberElement.getAttribute('data-parent');
               }
             }
-
             if (!memberId || !parentId || parentId === 'root') return;
             if (processed.has(memberId)) return;
-
             processed.add(memberId);
+            
             const prefixedParentId = uniquePrefix + parentId;
             const parentElement = svg.querySelector(`[id="${prefixedParentId}"]`);
-
             if (parentElement && parentElement.contains(memberElement)) {
               parentElement.insertBefore(memberElement, parentElement.firstChild);
             }
           });
         };
-
         reorderMembers();
 
-        // Insertion des objets enfants
+        // --- Calcul rotation statique ---
+        const getHierarchyStaticRotation = (element, rootSvg) => {
+          let totalRotation = 0;
+          let current = element;
+          while (current && current !== rootSvg && rootSvg.contains(current)) {
+            const transform = current.getAttribute('transform');
+            if (transform) {
+              const rotateMatches = [...transform.matchAll(/rotate\s*\(\s*(-?\d+(?:\.\d+)?)/g)];
+              rotateMatches.forEach(m => totalRotation += parseFloat(m[1]));
+            }
+            const style = current.getAttribute('style') || '';
+            const transformStyleMatch = style.match(/transform\s*:\s*([^;]+)/);
+            if (transformStyleMatch) {
+              const cssRotateMatches = [...transformStyleMatch[1].matchAll(/rotate\s*\(\s*(-?\d+(?:\.\d+)?)(deg|rad)?\s*\)/g)];
+              cssRotateMatches.forEach(m => {
+                const val = parseFloat(m[1]);
+                const unit = m[2];
+                totalRotation += (unit === 'rad') ? val * (180 / Math.PI) : val;
+              });
+            }
+            const id = current.getAttribute('id');
+            if (id && id.startsWith(uniquePrefix)) {
+              const memberId = id.replace(uniquePrefix, '');
+              const member = members.find(m => m.id === memberId);
+              if (member && member.rotation) totalRotation -= member.rotation;
+            }
+            current = current.parentElement;
+          }
+          return totalRotation;
+        };
+
+        // --- Insertion Objets Enfants ---
         childObjects.forEach(childObj => {
           if (!childObj.parentMemberId) return;
 
@@ -181,29 +203,33 @@ function Pantin({ pantin, onPointerDown }) {
           const memberElement = svg.querySelector(`[id="${prefixedMemberId}"]`);
 
           if (memberElement) {
-            const objX = childObj.relativeX ?? childObj.x;
-            const objY = childObj.relativeY ?? childObj.y;
+            // Utilisation des coordonnées x/y (qui sont locales)
+            const objX = childObj.x ?? 0;
+            const objY = childObj.y ?? 0;
 
             if (childObj.category === 'objets') {
+              const staticRotation = getHierarchyStaticRotation(memberElement, svg);
               const image = doc.createElementNS('http://www.w3.org/2000/svg', 'image');
+              
               image.setAttribute('href', `/assets/${childObj.path}`);
               image.setAttribute('x', objX);
               image.setAttribute('y', objY);
               image.setAttribute('width', (childObj.width || 100) * childObj.scale);
               image.setAttribute('height', (childObj.height || 100) * childObj.scale);
 
-              // CORRECTION: Utilisation directe de la propriété rotation standard
-              // L'InspectorPanel a déjà calculé la valeur correcte
-              const finalRotation = childObj.rotation || 0;
+              const desiredRotation = childObj.rotation || 0;
+              const compensationRotation = desiredRotation - staticRotation;
 
-              if (finalRotation !== 0) {
+              if (compensationRotation !== 0) {
                 const cx = objX + ((childObj.width || 100) * childObj.scale) / 2;
                 const cy = objY + ((childObj.height || 100) * childObj.scale) / 2;
-                image.setAttribute('transform', `rotate(${finalRotation} ${cx} ${cy})`);
+                image.setAttribute('transform', `rotate(${compensationRotation} ${cx} ${cy})`);
               }
 
+              // Attribut critique pour la sélection
               image.setAttribute('data-child-object', 'true');
               image.setAttribute('data-child-object-id', childObj.id);
+              
               memberElement.appendChild(image);
             }
           }
