@@ -5,7 +5,6 @@ function Pantin({ pantin, onPointerDown }) {
   const { id, members, source, x, y, rotation, scale, variantGroups, width, height, viewBox } = pantin;
   const [svgContent, setSvgContent] = useState(null);
 
-  // Get child objects attached to this pantin's members
   const objects = useSceneStore((state) => state.objects);
   const childObjects = useMemo(() => objects.filter(obj => obj.parentObjectId === id), [objects, id]);
 
@@ -26,10 +25,9 @@ function Pantin({ pantin, onPointerDown }) {
         const svg = doc.querySelector('svg');
         if (!svg) return;
 
-        // Préfixer tous les IDs avec l'ID unique du pantin pour éviter les conflits
         const uniquePrefix = `pantin-${id}-`;
 
-        // Mettre à jour tous les éléments avec un attribut id
+        // Préfixer tous les IDs
         const elementsWithId = svg.querySelectorAll('[id]');
         elementsWithId.forEach(element => {
           const oldId = element.getAttribute('id');
@@ -37,69 +35,56 @@ function Pantin({ pantin, onPointerDown }) {
           element.setAttribute('id', newId);
         });
 
-        // Mettre à jour toutes les références aux IDs (href, etc.)
+        // Mettre à jour les hrefs
         const elementsWithHref = svg.querySelectorAll('[href], [xlink\\:href]');
         elementsWithHref.forEach(element => {
           const href = element.getAttribute('href') || element.getAttribute('xlink:href');
           if (href && href.startsWith('#')) {
             const newHref = '#' + uniquePrefix + href.substring(1);
-            if (element.hasAttribute('href')) {
-              element.setAttribute('href', newHref);
-            }
-            if (element.hasAttribute('xlink:href')) {
-              element.setAttribute('xlink:href', newHref);
-            }
+            if (element.hasAttribute('href')) element.setAttribute('href', newHref);
+            if (element.hasAttribute('xlink:href')) element.setAttribute('xlink:href', newHref);
           }
         });
 
-        // Mettre à jour les références url(#id) dans les attributs de style
+        // Mettre à jour les styles url()
         const attributesWithUrl = ['fill', 'stroke', 'clip-path', 'mask', 'filter', 'marker-start', 'marker-mid', 'marker-end'];
         const allElements = svg.querySelectorAll('*');
         allElements.forEach(element => {
           attributesWithUrl.forEach(attr => {
             const value = element.getAttribute(attr);
             if (value && value.includes('url(#')) {
-              const newValue = value.replace(/url\(#([^)]+)\)/g, (match, id) => {
-                return `url(#${uniquePrefix}${id})`;
-              });
+              const newValue = value.replace(/url\(#([^)]+)\)/g, (match, id) => `url(#${uniquePrefix}${id})`);
               element.setAttribute(attr, newValue);
             }
           });
-
-          // Vérifier aussi l'attribut style
           const style = element.getAttribute('style');
           if (style && style.includes('url(#')) {
-            const newStyle = style.replace(/url\(#([^)]+)\)/g, (match, id) => {
-              return `url(#${uniquePrefix}${id})`;
-            });
+            const newStyle = style.replace(/url\(#([^)]+)\)/g, (match, id) => `url(#${uniquePrefix}${id})`);
             element.setAttribute('style', newStyle);
           }
         });
 
-        // Appliquer les rotations aux membres (dynamique)
+        // Appliquer les rotations aux membres
         if (members) {
           members.forEach(member => {
             const prefixedMemberId = uniquePrefix + member.id;
             const memberElement = svg.querySelector(`[id="${prefixedMemberId}"]`);
 
             if (memberElement && member.rotation !== undefined) {
-              // Récupérer le transform-origin existant ou calculer le centre
               const styleAttr = memberElement.getAttribute('style') || '';
               const originMatch = styleAttr.match(/transform-origin:\s*([^;]+)/);
               const transformOrigin = originMatch ? originMatch[1] : '50% 50%';
-
-              // Appliquer la rotation
+              
+              // On applique seulement la rotation dynamique
               const currentTransform = memberElement.getAttribute('transform') || '';
               const rotationTransform = `rotate(${member.rotation})`;
 
-              // Si un transform existe déjà, le combiner, sinon créer un nouveau
               if (currentTransform) {
                 memberElement.setAttribute('transform', `${currentTransform} ${rotationTransform}`);
               } else {
                 memberElement.setAttribute('transform', rotationTransform);
               }
 
-              // S'assurer que transform-origin est défini
               if (!originMatch) {
                 memberElement.setAttribute('style', `${styleAttr} transform-origin: ${transformOrigin};`);
               }
@@ -107,7 +92,7 @@ function Pantin({ pantin, onPointerDown }) {
           });
         }
 
-        // Gérer les variants et appliquer isBehindParent
+        // Gestion des variants
         if (variantGroups && members) {
           for (const memberId in variantGroups) {
             const member = members.find(m => m.id === memberId);
@@ -115,19 +100,14 @@ function Pantin({ pantin, onPointerDown }) {
               const groupVariants = variantGroups[memberId].variants;
               const prefixedMemberId = uniquePrefix + memberId;
               const memberElement = svg.querySelector(`[id="${prefixedMemberId}"]`);
-
-              // Chercher tous les éléments de ce groupe de variants
               const groupElements = svg.querySelectorAll(`[data-variant-groupe="${memberId}"]`);
 
               groupElements.forEach(variantElement => {
                 const variantName = variantElement.getAttribute('data-variant-name');
                 const isActive = variantName === member.activeVariant;
 
-                // Afficher seulement le variant actif
                 if (isActive) {
                   variantElement.style.display = 'block';
-
-                  // Appliquer isBehindParent du variant actif sur le MEMBRE
                   const variantConfig = groupVariants[variantName];
                   if (memberElement) {
                     const isBehind = variantConfig?.isBehindParent !== undefined
@@ -138,9 +118,7 @@ function Pantin({ pantin, onPointerDown }) {
                       memberElement.setAttribute('data-isbehindparent', 'true');
                     } else {
                       memberElement.removeAttribute('data-isbehindparent');
-                      memberElement.querySelectorAll('[data-isbehindparent]').forEach(el => {
-                        el.removeAttribute('data-isbehindparent');
-                      });
+                      memberElement.querySelectorAll('[data-isbehindparent]').forEach(el => el.removeAttribute('data-isbehindparent'));
                     }
                   }
                 } else {
@@ -151,20 +129,18 @@ function Pantin({ pantin, onPointerDown }) {
           }
         }
 
-        // Appliquer isBehindParent aux membres sans variants
+        // Fallback isBehindParent
         if (members) {
           members.forEach(member => {
             if (member.isBehindParent && !variantGroups?.[member.id]) {
               const prefixedMemberId = uniquePrefix + member.id;
               const memberElement = svg.querySelector(`[id="${prefixedMemberId}"]`);
-              if (memberElement) {
-                memberElement.setAttribute('data-isbehindparent', 'true');
-              }
+              if (memberElement) memberElement.setAttribute('data-isbehindparent', 'true');
             }
           });
         }
 
-        // Gérer l'ordre de rendu basé sur isBehindParent
+        // Reordering
         const reorderMembers = () => {
           const elementsWithBehind = svg.querySelectorAll('[data-isbehindparent="true"]');
           const processed = new Set();
@@ -197,46 +173,7 @@ function Pantin({ pantin, onPointerDown }) {
 
         reorderMembers();
 
-        // Helper: Calculate total rotation of the hierarchy (Static + Dynamic)
-        // Cela permet de soustraire la rotation native du SVG (Statique) qui n'est pas connue de l'Inspecteur.
-        const getHierarchyStaticRotation = (element, rootSvg) => {
-          let staticRotation = 0;
-          let current = element;
-
-          // Remonter jusqu'à la racine du SVG
-          while (current && current !== rootSvg && rootSvg.contains(current)) {
-            const transform = current.getAttribute('transform');
-            if (transform) {
-              // Regex pour extraire tous les "rotate(ANGLE ...)"
-              // On additionne toutes les rotations trouvées (statiques et dynamiques)
-              const matches = [...transform.matchAll(/rotate\s*\(\s*(-?\d+(?:\.\d+)?)/g)];
-              matches.forEach(match => {
-                staticRotation += parseFloat(match[1]);
-              });
-            }
-            
-            // Si c'est un membre avec une rotation dynamique connue, on la soustrait
-            // car l'Inspecteur a déjà compensé pour la rotation dynamique.
-            // On ne veut compenser QUE pour la rotation statique (native du SVG).
-            // Note: Comme on modifie le DOM 'transform' plus haut pour ajouter la rotation dynamique,
-            // 'transform' contient maintenant (Static + Dynamic).
-            // Donc Total = Static + Dynamic.
-            // On veut Static = Total - Dynamic.
-            const id = current.getAttribute('id');
-            if (id && id.startsWith(uniquePrefix)) {
-              const memberId = id.replace(uniquePrefix, '');
-              const member = members.find(m => m.id === memberId);
-              if (member && member.rotation) {
-                staticRotation -= member.rotation;
-              }
-            }
-
-            current = current.parentElement;
-          }
-          return staticRotation;
-        };
-
-        // Insérer les objets enfants dans les membres parents
+        // Insertion des objets enfants
         childObjects.forEach(childObj => {
           if (!childObj.parentMemberId) return;
 
@@ -247,9 +184,6 @@ function Pantin({ pantin, onPointerDown }) {
             const objX = childObj.relativeX ?? childObj.x;
             const objY = childObj.relativeY ?? childObj.y;
 
-            // Calculer la rotation "parasite" (statique) du SVG
-            const staticRotation = getHierarchyStaticRotation(memberElement, svg);
-
             if (childObj.category === 'objets') {
               const image = doc.createElementNS('http://www.w3.org/2000/svg', 'image');
               image.setAttribute('href', `/assets/${childObj.path}`);
@@ -258,10 +192,9 @@ function Pantin({ pantin, onPointerDown }) {
               image.setAttribute('width', (childObj.width || 100) * childObj.scale);
               image.setAttribute('height', (childObj.height || 100) * childObj.scale);
 
-              // CORRECTION : On applique la rotation désirée MOINS la rotation statique
-              // pour annuler l'effet de la structure du SVG.
-              const desiredRotation = childObj.rotation || 0;
-              const finalRotation = desiredRotation - staticRotation;
+              // CORRECTION: Utilisation directe de la propriété rotation standard
+              // L'InspectorPanel a déjà calculé la valeur correcte
+              const finalRotation = childObj.rotation || 0;
 
               if (finalRotation !== 0) {
                 const cx = objX + ((childObj.width || 100) * childObj.scale) / 2;
@@ -276,7 +209,6 @@ function Pantin({ pantin, onPointerDown }) {
           }
         });
 
-        // Extraire le viewBox et les dimensions
         const svgViewBox = svg.getAttribute('viewBox') || viewBox;
         const svgWidth = parseFloat(svg.getAttribute('width')) || width;
         const svgHeight = parseFloat(svg.getAttribute('height')) || height;
@@ -289,9 +221,7 @@ function Pantin({ pantin, onPointerDown }) {
         });
       })
       .catch((err) => {
-        if (!cancelled) {
-          console.error('Failed to load pantin SVG:', err);
-        }
+        if (!cancelled) console.error('Failed to load pantin SVG:', err);
       });
 
     return () => {
