@@ -11,7 +11,6 @@ function InspectorPanel() {
     [objects, selectedObjectId]
   )
 
-  // Get available pantins for parenting
   const availablePantins = useMemo(
     () => objects.filter(obj => obj.category === 'pantins' && obj.id !== selectedObjectId),
     [objects, selectedObjectId]
@@ -24,62 +23,49 @@ function InspectorPanel() {
 
   const handleUpdate = (prop, value) => {
     if (!selectedObjectId) return
-    // Ensure value is a number for numeric properties
     const numericValue = parseFloat(value)
     if (isNaN(numericValue)) return
-
     updateObject(selectedObjectId, { [prop]: numericValue })
   }
 
   const handleVariantChange = (memberId, variantName) => {
     if (!selectedObjectId || !selectedObject.members) return
-
-    // Mettre à jour le membre avec le nouveau variant actif
     const updatedMembers = selectedObject.members.map(member => {
       if (member.id === memberId) {
         return { ...member, activeVariant: variantName }
       }
       return member
     })
-
     updateObject(selectedObjectId, { members: updatedMembers })
   }
 
   const handleMemberRotationChange = (memberId, rotation) => {
     if (!selectedObjectId || !selectedObject.members) return
-
     const rotationValue = parseFloat(rotation)
     if (isNaN(rotationValue)) return
-
-    // Mettre à jour la rotation du membre
     const updatedMembers = selectedObject.members.map(member => {
       if (member.id === memberId) {
         return { ...member, rotation: rotationValue }
       }
       return member
     })
-
     updateObject(selectedObjectId, { members: updatedMembers })
   }
 
-  // Calculate cumulative rotation of a member including all parent members
-  const getCumulativeMemberRotation = (pantin, memberId) => {
+  // Calcule la rotation cumulée (absolue) d'un membre à partir de la racine du pantin
+  const getMemberAbsoluteRotation = (pantin, memberId) => {
     if (!pantin?.members) return 0
-
-    let totalRotation = 0
+    
+    let totalRotation = pantin.rotation || 0 // Commence avec la rotation globale du pantin
     let currentMemberId = memberId
 
-    // Traverse up the hierarchy
     while (currentMemberId) {
       const member = pantin.members.find(m => m.id === currentMemberId)
       if (!member) break
-
       totalRotation += member.rotation || 0
-      // Check both 'parent' and 'parentId' for compatibility
       const parentId = member.parent || member.parentId
       currentMemberId = (parentId === 'root' || !parentId) ? null : parentId
     }
-
     return totalRotation
   }
 
@@ -87,12 +73,11 @@ function InspectorPanel() {
     if (!selectedObjectId || !selectedObject) return
 
     if (parentObjectId === 'none') {
-      // Unlink from parent - restore absolute coordinates
+      // Délier : on restaure approximativement les coordonnées
+      // Note: Pour être parfait, il faudrait multiplier par le scale du parent sortant
       const relativeX = selectedObject.relativeX ?? selectedObject.x
       const relativeY = selectedObject.relativeY ?? selectedObject.y
       
-      // Note: La rotation absolue n'est pas recalculée parfaitement ici car on manque
-      // de données sur la structure SVG, mais on nettoie les props.
       updateObject(selectedObjectId, {
         parentObjectId: null,
         parentMemberId: null,
@@ -100,37 +85,29 @@ function InspectorPanel() {
         y: relativeY,
         relativeX: undefined,
         relativeY: undefined,
-        relativeRotation: undefined
       })
     } else {
-      // Link to parent - calculate relative coordinates
+      // Lier : Calcul des coordonnées relatives
       const parent = objects.find(obj => obj.id === parentObjectId)
       const firstMember = parent?.members?.[0]
-
-      // Calculate position relative to parent pantin
-      const relativeX = selectedObject.x - (parent?.x || 0)
-      const relativeY = selectedObject.y - (parent?.y || 0)
-
-      // Calculate cumulative rotation of the member (including all parent members)
-      const memberInitialRotation = getCumulativeMemberRotation(parent, firstMember?.id)
       
-      // CORRECTION : On inclut la rotation globale du pantin
-      const parentGlobalRotation = parent.rotation || 0
+      // IMPORTANT: Prendre en compte le scale du parent pour les coordonnées
+      const parentScale = parent.scale || 1
+      const relativeX = (selectedObject.x - (parent?.x || 0)) / parentScale
+      const relativeY = (selectedObject.y - (parent?.y || 0)) / parentScale
 
-      // Calculate relative rotation: 
-      // On veut que Rotation_Objet = Rotation_Pantin + Rotation_Membre + Rotation_Relative
-      // Donc Rotation_Relative = Rotation_Objet - (Rotation_Pantin + Rotation_Membre)
-      const currentAbsoluteRotation = selectedObject.rotation || 0
-      const relativeRotation = currentAbsoluteRotation - (parentGlobalRotation + memberInitialRotation)
+      // Calcul de la rotation relative
+      const currentAbsRotation = selectedObject.rotation || 0
+      const parentMemberAbsRotation = getMemberAbsoluteRotation(parent, firstMember?.id)
+      const newLocalRotation = currentAbsRotation - parentMemberAbsRotation
 
       updateObject(selectedObjectId, {
         parentObjectId,
         parentMemberId: firstMember?.id || null,
         relativeX,
         relativeY,
-        rotation: relativeRotation, // On utilise la prop standard 'rotation'
-        relativeRotation: undefined, 
-        memberInitialRotation 
+        rotation: newLocalRotation, 
+        relativeRotation: undefined // Nettoyage
       })
     }
   }
@@ -138,11 +115,21 @@ function InspectorPanel() {
   const handleParentMemberChange = (parentMemberId) => {
     if (!selectedObjectId || !parentPantin) return
 
-    const memberInitialRotation = getCumulativeMemberRotation(parentPantin, parentMemberId)
+    // 1. Récupérer la rotation absolue actuelle de l'objet
+    // Comme l'objet est déjà enfant, sa prop 'rotation' est locale par rapport à l'ancien membre parent
+    const oldParentMemberId = selectedObject.parentMemberId
+    const oldParentAbsRotation = getMemberAbsoluteRotation(parentPantin, oldParentMemberId)
+    const currentObjectAbsRotation = oldParentAbsRotation + (selectedObject.rotation || 0)
+
+    // 2. Calculer la rotation absolue du NOUVEAU membre parent
+    const newParentAbsRotation = getMemberAbsoluteRotation(parentPantin, parentMemberId)
+
+    // 3. La nouvelle rotation locale est la différence
+    const newLocalRotation = currentObjectAbsRotation - newParentAbsRotation
 
     updateObject(selectedObjectId, {
       parentMemberId,
-      memberInitialRotation
+      rotation: newLocalRotation
     })
   }
 
@@ -252,9 +239,7 @@ function InspectorPanel() {
             const member = selectedObject.members.find(m => m.id === memberId)
             const variantGroup = selectedObject.variantGroups[memberId]
             const variants = Object.keys(variantGroup.variants)
-
             if (!member || variants.length === 0) return null
-
             return (
               <label key={memberId}>
                 {member.name}
