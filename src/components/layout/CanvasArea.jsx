@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import useUIStore '../../stores/useUIStore'
+import useUIStore from '../../stores/useUIStore'
 import useSceneStore from '../../stores/useSceneStore'
 import SvgObject from '../SvgObject'
 import SvgBackground from '../SvgBackground'
@@ -111,14 +111,8 @@ function CanvasArea({ panelContent }) {
       const { initialX, initialY, pointerX, pointerY, object } =
         draggedObjectRef.current
       const sceneScale = fitScale * transform.scale
-      
-      // Calcul du delta en pixels écran converti en pixels scène
       const dx = (event.clientX - pointerX) / sceneScale
       const dy = (event.clientY - pointerY) / sceneScale
-      
-      // Note : Si l'objet est parenté (dans un groupe transformé), ce déplacement 
-      // ne suivra pas les axes locaux du parent, mais les axes de l'écran.
-      // C'est le comportement attendu pour un drag & drop intuitif 2D.
       const finalX = initialX + dx
       const finalY = initialY + dy
 
@@ -152,19 +146,18 @@ function CanvasArea({ panelContent }) {
     (event, object) => {
       if (event.button !== 0) return
       event.stopPropagation()
-
-      // -- CORRECTION : Détection de la sélection d'un objet enfant --
+      
+      // Détection si on a cliqué sur un objet enfant encapsulé dans le pantin
       let targetObject = object;
-      const childId = event.target.getAttribute('data-child-object-id');
+      const clickedElement = event.target;
+      const childId = clickedElement.getAttribute('data-child-object-id');
       
       if (childId) {
-        // Si on a cliqué sur un enfant à l'intérieur du SVG du pantin
         const foundChild = objects.find(o => o.id === childId);
         if (foundChild) {
           targetObject = foundChild;
         }
       }
-      // -------------------------------------------------------------
 
       selectObject(targetObject.id)
       draggedObjectRef.current = {
