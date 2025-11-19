@@ -1,4 +1,5 @@
 import { useEffect, useState, useMemo } from 'react'
+import { fetchSvgText } from '../utils/svgCache'
 
 function InlineSvg({ src, className, style, ...rest }) {
   const [svgContent, setSvgContent] = useState(null)
@@ -12,15 +13,9 @@ function InlineSvg({ src, className, style, ...rest }) {
         setStatus('loading')
       }
     })
-    fetch(src)
-      .then((res) => {
-        if (!res.ok) {
-          throw new Error(`Failed to fetch SVG: ${res.statusText}`)
-        }
-        return res.text()
-      })
+    fetchSvgText(src)
       .then((text) => {
-        if (!cancelled) {
+        if (!cancelled && text) {
           setSvgContent(text)
           setStatus('success')
         }
